@@ -112,6 +112,43 @@ Generates optimized code and explanations, with the option to automatically refa
 
 ---
 
+## FastAPI Python Sandbox (Profiler)
+
+This repository now includes a minimal FastAPI sandbox API for dynamic analysis.
+
+### Run locally
+
+1. Create and activate a virtual environment.
+2. Install dependencies:
+   - `pip install -r sandbox/requirements.txt`
+3. Start the API:
+   - `uvicorn sandbox.main:app --reload`
+
+### API endpoints
+
+- `GET /health`
+- `POST /profile`
+
+Example request body:
+
+```json
+{
+  "code": "def work(n):\n    total = 0\n    for i in range(n):\n        total += i * i\n    return total\n\nprint(work(200000))"
+}
+```
+
+The response returns:
+- execution success/failure
+- per-function CPU time, wall time, memory delta, and estimated energy usage
+- aggregated totals (CPU, wall time, peak memory, estimated energy)
+- captured `stdout` and `stderr`
+
+### Security notes
+
+This sandbox reduces risk by running untrusted code in a separate process with strict timeout, CPU, and memory limits. It is **not** a perfect isolation boundary for hostile multi-tenant production use. For stronger isolation, run this service in container/VM isolation with seccomp/AppArmor and network egress restrictions.
+
+---
+
 ## Team
 
 | Name | Institution |
