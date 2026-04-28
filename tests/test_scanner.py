@@ -3,8 +3,8 @@ import tempfile
 
 import pytest
 
-from vibeguard.core.scanner import Scanner
-from vibeguard.models.finding import Severity
+from security.core.scanner import Scanner
+from security.models.finding import Severity
 
 
 def _write_tmp(code: str, suffix: str = ".py") -> str:

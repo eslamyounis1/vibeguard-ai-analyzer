@@ -1,13 +1,13 @@
 import ast
 import pytest
 
-from vibeguard.rules.security.vg001_eval import EvalUsageRule
-from vibeguard.rules.security.vg002_exec import ExecUsageRule
-from vibeguard.rules.security.vg003_hardcoded_secrets import HardcodedSecretsRule
-from vibeguard.rules.security.vg004_insecure_random import InsecureRandomRule
-from vibeguard.rules.security.vg005_subprocess import SubprocessShellRule
-from vibeguard.rules.security.vg006_pickle import PickleRule
-from vibeguard.rules.security.vg007_assert import SecurityAssertRule
+from security.rules.security.vg001_eval import EvalUsageRule
+from security.rules.security.vg002_exec import ExecUsageRule
+from security.rules.security.vg003_hardcoded_secrets import HardcodedSecretsRule
+from security.rules.security.vg004_insecure_random import InsecureRandomRule
+from security.rules.security.vg005_subprocess import SubprocessShellRule
+from security.rules.security.vg006_pickle import PickleRule
+from security.rules.security.vg007_assert import SecurityAssertRule
 
 
 def _parse(code: str):
