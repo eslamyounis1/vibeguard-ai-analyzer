@@ -29,12 +29,12 @@ from typing import Optional
 # Allow running as both `python -m benchmarks.runner` and `python benchmarks/runner.py`
 try:
     from benchmarks.dataset import SAMPLES, SAMPLES_BY_ID, Sample
-    from vibeguard.analyze import analyze
+    from security.analyze import analyze
 except ImportError:
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from benchmarks.dataset import SAMPLES, SAMPLES_BY_ID, Sample
-    from vibeguard.analyze import analyze
+    from security.analyze import analyze
 
 
 # ─── Per-sample result ────────────────────────────────────────────────────────
