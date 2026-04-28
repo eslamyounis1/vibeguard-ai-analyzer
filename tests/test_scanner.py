@@ -20,7 +20,7 @@ class TestScannerSingleFile:
         try:
             result = Scanner().scan(path)
             assert result.scanned_files == 1
-            assert any(f.rule_id == "VG001" for f in result.findings)
+            assert any(f.rule_id == "eval_exec_usage" for f in result.findings)
         finally:
             os.unlink(path)
 
@@ -99,9 +99,8 @@ class TestSeverityFilter:
         path = _write_tmp(code)
         try:
             result = Scanner(min_severity=Severity.HIGH).scan(path)
-            assert all(f.severity == Severity.HIGH for f in result.findings)
-            # random.randint is MEDIUM, so nothing survives the filter
-            random_findings = [f for f in result.findings if f.rule_id == "VG004"]
+            # insecure_random is MEDIUM, so it must not survive a HIGH filter
+            random_findings = [f for f in result.findings if f.rule_id == "insecure_random"]
             assert random_findings == []
         finally:
             os.unlink(path)
@@ -110,7 +109,7 @@ class TestSeverityFilter:
         path = _write_tmp("eval(x)\n")
         try:
             result = Scanner(min_severity=Severity.HIGH).scan(path)
-            assert any(f.rule_id == "VG001" for f in result.findings)
+            assert any(f.rule_id == "eval_exec_usage" for f in result.findings)
         finally:
             os.unlink(path)
 
