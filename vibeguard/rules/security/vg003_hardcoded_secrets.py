@@ -11,7 +11,7 @@ _SENSITIVE = frozenset({
 
 
 class HardcodedSecretsRule(SecurityRule):
-    rule_id = "VG003"
+    rule_id = "hardcoded_secret"
     title = "Hardcoded Secret"
     description = (
         "Assigning a non-empty string literal to a variable with a sensitive name "

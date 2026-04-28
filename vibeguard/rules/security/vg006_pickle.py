@@ -9,7 +9,7 @@ _LOAD_FUNCS = frozenset({"load", "loads"})
 
 
 class PickleRule(SecurityRule):
-    rule_id = "VG006"
+    rule_id = "unsafe_deserialization"
     title = "Pickle Deserialization"
     description = (
         "pickle.load() and pickle.loads() can execute arbitrary code when "

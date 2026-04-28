@@ -11,7 +11,7 @@ _SUBPROCESS_FUNCS = frozenset({
 
 
 class SubprocessShellRule(SecurityRule):
-    rule_id = "VG005"
+    rule_id = "subprocess_shell_true"
     title = "Dangerous Subprocess Usage"
     description = "Using shell=True in subprocess calls exposes the command to shell injection."
     severity = Severity.HIGH
