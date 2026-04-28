@@ -5,12 +5,12 @@ from typing import List, Optional
 from vibeguard.models.finding import Category, Finding, Severity
 
 
-class SecurityRule(ABC):
+class PerformanceRule(ABC):
     rule_id: str
     title: str
     description: str
     severity: Severity
-    category: Category = Category.SECURITY
+    category: Category = Category.PERFORMANCE
 
     @abstractmethod
     def check(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:

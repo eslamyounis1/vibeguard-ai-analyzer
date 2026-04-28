@@ -11,7 +11,7 @@ _RANDOM_FUNCTIONS = frozenset({
 
 
 class InsecureRandomRule(SecurityRule):
-    rule_id = "VG004"
+    rule_id = "insecure_random"
     title = "Insecure Randomness"
     description = (
         "The random module uses a pseudo-random generator not suitable for "

@@ -10,6 +10,8 @@ from vibeguard.rules.security.vg004_insecure_random import InsecureRandomRule
 from vibeguard.rules.security.vg005_subprocess import SubprocessShellRule
 from vibeguard.rules.security.vg006_pickle import PickleRule
 from vibeguard.rules.security.vg007_assert import SecurityAssertRule
+from vibeguard.rules.security.vg008_weak_hash import WeakHashRule
+from vibeguard.rules.security.vg009_os_shell import OsShellRule
 
 _DEFAULT_RULES: List[SecurityRule] = [
     EvalUsageRule(),
@@ -19,6 +21,8 @@ _DEFAULT_RULES: List[SecurityRule] = [
     SubprocessShellRule(),
     PickleRule(),
     SecurityAssertRule(),
+    WeakHashRule(),
+    OsShellRule(),
 ]
 
 

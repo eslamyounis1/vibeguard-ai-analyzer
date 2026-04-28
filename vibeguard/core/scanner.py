@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Optional, Tuple, List
 
 from vibeguard.analyzers.security.analyzer import SecurityAnalyzer
+from vibeguard.analyzers.smells.analyzer import SmellAnalyzer
+from vibeguard.analyzers.performance.analyzer import PerformanceAnalyzer
 from vibeguard.models.finding import Finding, ParseError, ScanResult, Severity, severity_gte
 from vibeguard.utils.file_utils import collect_python_files
 
@@ -15,7 +17,9 @@ class Scanner:
     ) -> None:
         self.min_severity = min_severity
         self.include_snippet = include_snippet
-        self._analyzer = SecurityAnalyzer()
+        self._security = SecurityAnalyzer()
+        self._smells = SmellAnalyzer()
+        self._performance = PerformanceAnalyzer()
 
     def scan(self, path: str) -> ScanResult:
         result = ScanResult()
@@ -57,7 +61,7 @@ class Scanner:
         except SyntaxError as exc:
             return [], ParseError(file=file_path, message=f"SyntaxError: {exc}")
         source_lines = code.splitlines()
-        findings = self._analyzer.analyze(tree, file_path, source_lines)
+        findings = self._run_all(tree, file_path, source_lines)
         return findings, None
 
     def _scan_file(self, file_path: str) -> Tuple[List[Finding], Optional[ParseError]]:
@@ -72,5 +76,12 @@ class Scanner:
             return [], ParseError(file=file_path, message=f"SyntaxError: {exc}")
 
         source_lines = source.splitlines()
-        findings = self._analyzer.analyze(tree, file_path, source_lines)
+        findings = self._run_all(tree, file_path, source_lines)
         return findings, None
+
+    def _run_all(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
+        findings: List[Finding] = []
+        findings.extend(self._security.analyze(tree, file_path, source_lines))
+        findings.extend(self._smells.analyze(tree, file_path, source_lines))
+        findings.extend(self._performance.analyze(tree, file_path, source_lines))
+        return findings
