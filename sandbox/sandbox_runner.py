@@ -1,4 +1,5 @@
 import argparse
+import builtins
 import contextlib
 import io
 import json
@@ -9,6 +10,53 @@ import tracemalloc
 import sys
 import traceback
 from collections import defaultdict
+
+# Allowlist of safe builtins exposed to user code.
+# Deliberately excludes: __import__, open, exec, eval, compile, input,
+# breakpoint, memoryview, and all module-access helpers.
+_SAFE_BUILTIN_NAMES = {
+    # Types
+    "bool", "bytearray", "bytes", "complex", "dict", "float",
+    "frozenset", "int", "list", "object", "set", "str", "tuple", "type",
+    # Iteration
+    "enumerate", "filter", "map", "range", "reversed", "sorted", "zip",
+    # Introspection (read-only)
+    "callable", "dir", "getattr", "hasattr", "id",
+    "isinstance", "issubclass", "len", "repr", "vars",
+    # Numeric
+    "abs", "divmod", "max", "min", "pow", "round", "sum",
+    # Misc utilities
+    "all", "any", "bin", "chr", "format", "hash", "hex",
+    "iter", "next", "oct", "ord", "print", "slice",
+    # OOP helpers
+    "classmethod", "property", "staticmethod", "super",
+    # Sentinels
+    "NotImplemented",
+    # Exceptions — user code must be able to raise and catch these
+    "ArithmeticError", "AssertionError", "AttributeError", "BaseException",
+    "BufferError", "EOFError", "Exception", "FloatingPointError",
+    "GeneratorExit", "IOError", "ImportError", "IndexError",
+    "InterruptedError", "IsADirectoryError", "KeyError",
+    "KeyboardInterrupt", "LookupError", "MemoryError", "ModuleNotFoundError",
+    "NameError", "NotADirectoryError", "NotImplementedError", "OSError",
+    "OverflowError", "RecursionError", "ReferenceError", "RuntimeError",
+    "StopAsyncIteration", "StopIteration", "SyntaxError", "SystemError",
+    "SystemExit", "TimeoutError", "TypeError", "UnicodeDecodeError",
+    "UnicodeEncodeError", "UnicodeError", "UnicodeTranslateError",
+    "ValueError", "ZeroDivisionError",
+    # Warnings
+    "DeprecationWarning", "FutureWarning", "RuntimeWarning",
+    "SyntaxWarning", "UserWarning", "Warning",
+}
+
+SAFE_BUILTINS: dict = {
+    name: getattr(builtins, name)
+    for name in _SAFE_BUILTIN_NAMES
+    if hasattr(builtins, name)
+}
+# Expose True/False/None as builtins constants (they're keywords in Py3 but
+# some eval contexts still look them up via __builtins__).
+SAFE_BUILTINS.update({"True": True, "False": False, "None": None})
 
 
 def _clamp_limit(requested: int, hard_limit: int) -> int:
@@ -63,7 +111,7 @@ def _summarize_function_metrics(function_totals: dict[str, dict[str, float]]) ->
 
 
 def run_user_code(code: str) -> dict:
-    globals_dict = {"__name__": "__main__", "__builtins__": __builtins__}
+    globals_dict = {"__name__": "__main__", "__builtins__": SAFE_BUILTINS}
     user_stdout = io.StringIO()
     user_stderr = io.StringIO()
     call_stack = []
