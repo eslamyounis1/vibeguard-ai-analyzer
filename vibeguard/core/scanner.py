@@ -36,6 +36,30 @@ class Scanner:
 
         return result
 
+    def scan_source(self, code: str, filename: str = "<code>") -> ScanResult:
+        result = ScanResult()
+        result.scanned_files = 1
+        findings, error = self._scan_source_str(code, filename)
+        if error:
+            result.parse_errors.append(error)
+        else:
+            for finding in findings:
+                if self.min_severity and not severity_gte(finding.severity, self.min_severity):
+                    continue
+                if not self.include_snippet:
+                    finding.snippet = None
+                result.findings.append(finding)
+        return result
+
+    def _scan_source_str(self, code: str, file_path: str) -> Tuple[List[Finding], Optional[ParseError]]:
+        try:
+            tree = ast.parse(code, filename=file_path)
+        except SyntaxError as exc:
+            return [], ParseError(file=file_path, message=f"SyntaxError: {exc}")
+        source_lines = code.splitlines()
+        findings = self._analyzer.analyze(tree, file_path, source_lines)
+        return findings, None
+
     def _scan_file(self, file_path: str) -> Tuple[List[Finding], Optional[ParseError]]:
         try:
             source = Path(file_path).read_text(encoding="utf-8", errors="replace")
