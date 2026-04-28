@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "security"
+version = "0.1.0"
+description = "Static security analyzer for Python code"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[project.scripts]
+security = "security.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["security*"]
