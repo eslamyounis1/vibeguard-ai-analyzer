@@ -108,7 +108,132 @@ Generates optimized code and explanations, with the option to automatically refa
 
 ## Current Stage
 
-> **TBD** — to be updated by the team.
+**Phase 1 (MVP) — Security Analyzer** — implemented and functional.
+
+The first release provides a full static security scanner for Python code via a professional CLI.
+
+---
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+Requires Python 3.10+. No third-party dependencies for the core tool.
+
+---
+
+## Usage
+
+### Scan a file or directory
+
+```bash
+vibeguard scan ./project
+vibeguard scan app/main.py
+```
+
+### Output formats
+
+```bash
+# Human-readable terminal output (default)
+vibeguard scan ./project --format text
+
+# Structured JSON (for CI pipelines, dashboards, etc.)
+vibeguard scan ./project --format json
+```
+
+### Filter by severity
+
+```bash
+# Report only HIGH and above
+vibeguard scan ./project --severity high
+
+# Report MEDIUM and above
+vibeguard scan ./project --severity medium
+```
+
+### Save to a file
+
+```bash
+vibeguard scan ./project --output report.json --format json
+vibeguard scan ./project --output report.txt
+```
+
+### Other flags
+
+```bash
+--no-snippet      Exclude source code snippets from findings
+--quiet           Suppress informational messages when using --output
+```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Scan completed — no findings above selected threshold |
+| `1`  | Scan completed — findings detected |
+| `2`  | Operational error or invalid usage |
+
+---
+
+## Implemented Security Rules (Phase 1)
+
+| Rule ID | Title | Severity |
+|---------|-------|----------|
+| VG001 | Use of `eval()` | HIGH |
+| VG002 | Use of `exec()` | HIGH |
+| VG003 | Hardcoded Secret | HIGH |
+| VG004 | Insecure Randomness | MEDIUM |
+| VG005 | Dangerous Subprocess Usage (`shell=True`) | HIGH |
+| VG006 | Pickle Deserialization | HIGH |
+| VG007 | Assert Used for Security Check | MEDIUM |
+
+---
+
+## Example Output
+
+```
+[HIGH] VG001 Use of eval()
+  File: app/main.py:14
+  Code: result = eval(user_input)
+  Message: Use of eval() is insecure and may allow arbitrary code execution.
+
+[HIGH] VG003 Hardcoded Secret
+  File: app/config.py:3
+  Code: password = "hunter2"
+  Message: Variable 'password' appears to contain a hardcoded secret.
+
+Scanned 4 file(s). Found 3 issue(s): 2 high, 1 medium, 0 low.
+```
+
+---
+
+## Project Structure
+
+```
+vibeguard/
+├── cli/            Command-line interface
+├── core/           Scanner orchestration
+├── analyzers/
+│   └── security/   Security analyzer (Phase 1)
+├── rules/
+│   └── security/   Security rules VG001–VG007
+├── models/         Finding and ScanResult data models
+├── reporters/      Text and JSON output formatters
+└── utils/          File traversal helpers
+```
+
+Future analyzers (quality, performance, energy) plug in as siblings under `analyzers/` and `rules/`.
+
+---
+
+## Running Tests
+
+```bash
+pip install pytest
+pytest tests/ -v
+```
 
 ---
 
