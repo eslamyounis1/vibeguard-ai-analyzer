@@ -19,7 +19,7 @@ class TestVG001Eval:
         tree, lines = _parse("eval(user_input)")
         findings = EvalUsageRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG001"
+        assert findings[0].rule_id == "eval_exec_usage"
         assert findings[0].line == 1
 
     def test_snippet_captured(self):
@@ -42,7 +42,7 @@ class TestVG002Exec:
         tree, lines = _parse('exec("import os")')
         findings = ExecUsageRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG002"
+        assert findings[0].rule_id == "eval_exec_usage"
 
     def test_no_false_positive_string(self):
         tree, lines = _parse("x = 'executor string'")
@@ -54,7 +54,7 @@ class TestVG003HardcodedSecrets:
         tree, lines = _parse('password = "super_secret"')
         findings = HardcodedSecretsRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG003"
+        assert findings[0].rule_id == "hardcoded_secret"
 
     def test_detects_api_key(self):
         tree, lines = _parse('api_key = "sk-abc123"')
@@ -85,7 +85,7 @@ class TestVG004InsecureRandom:
         tree, lines = _parse(code)
         findings = InsecureRandomRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG004"
+        assert findings[0].rule_id == "insecure_random"
 
     def test_detects_random_choice(self):
         code = "import random\nx = random.choice(['a', 'b'])"
@@ -115,7 +115,7 @@ class TestVG005Subprocess:
         tree, lines = _parse(code)
         findings = SubprocessShellRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG005"
+        assert findings[0].rule_id == "subprocess_shell_true"
 
     def test_detects_subprocess_popen_shell_true(self):
         code = "import subprocess\nsubprocess.Popen('ls', shell=True)"
@@ -144,7 +144,7 @@ class TestVG006Pickle:
         tree, lines = _parse(code)
         findings = PickleRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG006"
+        assert findings[0].rule_id == "unsafe_deserialization"
 
     def test_detects_pickle_loads(self):
         code = "import pickle\ndata = pickle.loads(raw)"
@@ -167,7 +167,7 @@ class TestVG007Assert:
         tree, lines = _parse("assert user.is_authenticated")
         findings = SecurityAssertRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "VG007"
+        assert findings[0].rule_id == "assert_used_for_validation"
 
     def test_detects_admin_assert(self):
         tree, lines = _parse("assert is_admin(user)")
@@ -179,10 +179,11 @@ class TestVG007Assert:
         findings = SecurityAssertRule().check(tree, "test.py", lines)
         assert len(findings) == 1
 
-    def test_no_flag_unrelated_assert(self):
+    def test_flags_all_asserts(self):
+        # Rule now flags every assert regardless of context
         tree, lines = _parse("assert len(items) > 0")
-        assert SecurityAssertRule().check(tree, "test.py", lines) == []
+        assert len(SecurityAssertRule().check(tree, "test.py", lines)) == 1
 
-    def test_no_flag_math_assert(self):
+    def test_flags_math_assert(self):
         tree, lines = _parse("assert result == expected_value")
-        assert SecurityAssertRule().check(tree, "test.py", lines) == []
+        assert len(SecurityAssertRule().check(tree, "test.py", lines)) == 1
