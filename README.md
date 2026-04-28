@@ -108,9 +108,17 @@ Generates optimized code and explanations, with the option to automatically refa
 
 ## Current Stage
 
-**Phase 1 (MVP) — Security Analyzer** — implemented and functional.
+VibeGuard is currently in an **early but working stage**.
 
-The first release provides a full static security scanner for Python code via a professional CLI.
+**What is available now:**
+- Security scanning for Python projects (static analysis)
+- Runtime profiling through a sandbox API (time, memory, estimated energy)
+- Benchmarking tools to measure detection quality
+
+**What comes next:**
+- Broader code-quality analysis
+- Automated optimization and repair suggestions
+- End-to-end reporting across quality, efficiency, and security
 
 ---
 
