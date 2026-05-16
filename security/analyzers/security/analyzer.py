@@ -12,6 +12,11 @@ from security.rules.security.vg006_pickle import PickleRule
 from security.rules.security.vg007_assert import SecurityAssertRule
 from security.rules.security.vg008_weak_hash import WeakHashRule
 from security.rules.security.vg009_os_shell import OsShellRule
+from security.rules.security.vg010_yaml_load import UnsafeYamlLoadRule
+from security.rules.security.vg011_tls_verify import DisabledTlsVerificationRule
+from security.rules.security.vg012_debug_mode import DebugModeRule
+from security.rules.security.vg013_sql_injection import SqlInjectionRule
+from security.rules.security.metadata import enrich_security_finding
 
 _DEFAULT_RULES: List[SecurityRule] = [
     EvalUsageRule(),
@@ -23,6 +28,10 @@ _DEFAULT_RULES: List[SecurityRule] = [
     SecurityAssertRule(),
     WeakHashRule(),
     OsShellRule(),
+    UnsafeYamlLoadRule(),
+    DisabledTlsVerificationRule(),
+    DebugModeRule(),
+    SqlInjectionRule(),
 ]
 
 
@@ -33,5 +42,5 @@ class SecurityAnalyzer:
     def analyze(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
         for rule in self.rules:
-            findings.extend(rule.check(tree, file_path, source_lines))
+            findings.extend(enrich_security_finding(finding) for finding in rule.check(tree, file_path, source_lines))
         return findings

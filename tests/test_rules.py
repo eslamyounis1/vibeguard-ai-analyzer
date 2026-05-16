@@ -8,6 +8,10 @@ from security.rules.security.vg004_insecure_random import InsecureRandomRule
 from security.rules.security.vg005_subprocess import SubprocessShellRule
 from security.rules.security.vg006_pickle import PickleRule
 from security.rules.security.vg007_assert import SecurityAssertRule
+from security.rules.security.vg010_yaml_load import UnsafeYamlLoadRule
+from security.rules.security.vg011_tls_verify import DisabledTlsVerificationRule
+from security.rules.security.vg012_debug_mode import DebugModeRule
+from security.rules.security.vg013_sql_injection import SqlInjectionRule
 
 
 def _parse(code: str):
@@ -187,3 +191,86 @@ class TestVG007Assert:
     def test_flags_math_assert(self):
         tree, lines = _parse("assert result == expected_value")
         assert len(SecurityAssertRule().check(tree, "test.py", lines)) == 1
+
+
+class TestVG010YamlLoad:
+    def test_detects_yaml_load_without_loader(self):
+        code = "import yaml\ndata = yaml.load(raw)"
+        tree, lines = _parse(code)
+        findings = UnsafeYamlLoadRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "unsafe_yaml_load"
+
+    def test_detects_direct_yaml_load_import(self):
+        code = "from yaml import load\ndata = load(raw)"
+        tree, lines = _parse(code)
+        assert len(UnsafeYamlLoadRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_safe_load(self):
+        code = "import yaml\ndata = yaml.safe_load(raw)"
+        tree, lines = _parse(code)
+        assert UnsafeYamlLoadRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_safe_loader(self):
+        code = "import yaml\ndata = yaml.load(raw, Loader=yaml.SafeLoader)"
+        tree, lines = _parse(code)
+        assert UnsafeYamlLoadRule().check(tree, "test.py", lines) == []
+
+
+class TestVG011TlsVerify:
+    def test_detects_requests_verify_false(self):
+        code = "import requests\nrequests.get('https://example.com', verify=False)"
+        tree, lines = _parse(code)
+        findings = DisabledTlsVerificationRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "tls_verification_disabled"
+
+    def test_detects_direct_requests_import(self):
+        code = "from requests import post\npost('https://example.com', verify=False)"
+        tree, lines = _parse(code)
+        assert len(DisabledTlsVerificationRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_verify_true(self):
+        code = "import requests\nrequests.get('https://example.com', verify=True)"
+        tree, lines = _parse(code)
+        assert DisabledTlsVerificationRule().check(tree, "test.py", lines) == []
+
+
+class TestVG012DebugMode:
+    def test_detects_app_run_debug_true(self):
+        tree, lines = _parse("app.run(debug=True)")
+        findings = DebugModeRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "debug_mode_enabled"
+
+    def test_detects_fastapi_debug_true(self):
+        tree, lines = _parse("app = FastAPI(debug=True)")
+        assert len(DebugModeRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_debug_false(self):
+        tree, lines = _parse("app.run(debug=False)")
+        assert DebugModeRule().check(tree, "test.py", lines) == []
+
+
+class TestVG013SqlInjection:
+    def test_detects_f_string_sql_execute(self):
+        code = "cursor.execute(f\"SELECT * FROM users WHERE name = '{name}'\")"
+        tree, lines = _parse(code)
+        findings = SqlInjectionRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "sql_query_construction"
+
+    def test_detects_percent_formatted_sql(self):
+        code = "cursor.execute(\"SELECT * FROM users WHERE id = %s\" % user_id)"
+        tree, lines = _parse(code)
+        assert len(SqlInjectionRule().check(tree, "test.py", lines)) == 1
+
+    def test_detects_format_sql(self):
+        code = "cursor.execute(\"DELETE FROM users WHERE id = {}\".format(user_id))"
+        tree, lines = _parse(code)
+        assert len(SqlInjectionRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_parameterized_sql(self):
+        code = "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
+        tree, lines = _parse(code)
+        assert SqlInjectionRule().check(tree, "test.py", lines) == []

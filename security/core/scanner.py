@@ -84,4 +84,23 @@ class Scanner:
         findings.extend(self._security.analyze(tree, file_path, source_lines))
         findings.extend(self._smells.analyze(tree, file_path, source_lines))
         findings.extend(self._performance.analyze(tree, file_path, source_lines))
-        return findings
+        return [finding for finding in findings if not self._is_ignored(finding, source_lines)]
+
+    def _is_ignored(self, finding: Finding, source_lines: List[str]) -> bool:
+        if finding.line is None:
+            return False
+        comments = []
+        for line_no in (finding.line - 1, finding.line):
+            if 1 <= line_no <= len(source_lines):
+                comments.append(source_lines[line_no - 1])
+        return any(self._ignore_comment_matches(comment, finding.rule_id) for comment in comments)
+
+    def _ignore_comment_matches(self, line: str, rule_id: str) -> bool:
+        marker = "# vibeguard: ignore"
+        if marker not in line:
+            return False
+        ignored = line.split(marker, 1)[1].strip()
+        if not ignored:
+            return True
+        ignored_rules = {part.strip() for part in ignored.replace(",", " ").split()}
+        return "all" in ignored_rules or rule_id in ignored_rules

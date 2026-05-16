@@ -54,7 +54,7 @@ function findingToDiagnostic(finding: Finding, document: vscode.TextDocument): v
 
   const diagnostic = new vscode.Diagnostic(
     range,
-    `[${finding.rule_id}] ${finding.message}`,
+    formatDiagnosticMessage(finding),
     SEVERITY_MAP[finding.severity] ?? vscode.DiagnosticSeverity.Warning,
   );
   diagnostic.source = DIAGNOSTIC_SOURCE;
@@ -71,4 +71,18 @@ function findingToDiagnostic(finding: Finding, document: vscode.TextDocument): v
   }
 
   return diagnostic;
+}
+
+function formatDiagnosticMessage(finding: Finding): string {
+  const parts = [`[${finding.rule_id}] ${finding.message}`];
+  if (finding.cwe) {
+    parts.push(finding.cwe);
+  }
+  if (finding.confidence) {
+    parts.push(`confidence=${finding.confidence.toLowerCase()}`);
+  }
+  if (finding.risk_score !== undefined && finding.risk_score !== null) {
+    parts.push(`risk=${finding.risk_score}/100`);
+  }
+  return parts.join(" | ");
 }
