@@ -6,3 +6,5 @@ dist/
 build/
 .DS_Store
 .pytest_cache/
+vscode-extension/node_modules/
+vscode-extension/out/

@@ -108,9 +108,17 @@ Generates optimized code and explanations, with the option to automatically refa
 
 ## Current Stage
 
-**Phase 1 (MVP) — Security Analyzer** — implemented and functional.
+VibeGuard is currently in an **early but working stage**.
 
-The first release provides a full static security scanner for Python code via a professional CLI.
+**What is available now:**
+- Security scanning for Python projects (static analysis)
+- Runtime profiling through a sandbox API (time, memory, estimated energy)
+- Benchmarking tools to measure detection quality
+
+**What comes next:**
+- Broader code-quality analysis
+- Automated optimization and repair suggestions
+- End-to-end reporting across quality, efficiency, and security
 
 ---
 
@@ -271,6 +279,91 @@ The response returns:
 ### Security notes
 
 This sandbox reduces risk by running untrusted code in a separate process with strict timeout, CPU, and memory limits. It is **not** a perfect isolation boundary for hostile multi-tenant production use. For stronger isolation, run this service in container/VM isolation with seccomp/AppArmor and network egress restrictions.
+
+---
+
+## VS Code Extension
+
+The `vscode-extension/` folder contains a VS Code extension that sends the active Python editor (or selection) to the security analyzer and profiling sandbox.
+
+### Start the APIs (two terminals)
+
+Security analyzer (port 8000):
+
+```bash
+pip install -r security/api/requirements.txt
+pip install -e .
+uvicorn security.api.main:app --reload --port 8000
+```
+
+Sandbox profiler (port 8001):
+
+```bash
+pip install -r sandbox/requirements.txt
+uvicorn sandbox.main:app --reload --port 8001
+```
+
+### Install and run the extension
+
+```bash
+cd vscode-extension
+npm install
+npm run compile
+```
+
+Open `vscode-extension/` in VS Code, press **F5** to launch an Extension Development Host, then open a Python file and run:
+
+- **VibeGuard: Analyze File (Security + Sandbox)** — static scan + sandbox profile
+- **VibeGuard: Security Scan Only** — static analysis only
+- **VibeGuard: Profile in Sandbox** — runtime profile only
+- **VibeGuard: Analyze Selection** — analyze the highlighted region
+- **VibeGuard: Check API Health** — verify both APIs are reachable
+
+Findings appear in the **Problems** panel; full reports appear in the **VibeGuard** output channel.
+
+Configure API URLs under **Settings → VibeGuard** (`vibeguard.securityApiUrl`, `vibeguard.sandboxApiUrl`).
+
+### Install permanently (production use)
+
+Debug mode (**F5**) is only for developing the extension. To install it in VS Code or Cursor like any other extension:
+
+**1. Build the VSIX package**
+
+```bash
+cd vscode-extension
+npm install
+npm run package
+```
+
+This creates `vscode-extension/vibeguard-analyzer-0.1.0.vsix`.
+
+**2. Install in VS Code**
+
+- Open **Extensions** (`Cmd+Shift+X`)
+- Click **⋯** (top of Extensions sidebar) → **Install from VSIX…**
+- Select `vibeguard-analyzer-0.1.0.vsix`
+
+Or from a terminal:
+
+```bash
+code --install-extension vscode-extension/vibeguard-analyzer-0.1.0.vsix
+```
+
+**3. Install in Cursor**
+
+Same UI: **Extensions → ⋯ → Install from VSIX…**, or:
+
+```bash
+cursor --install-extension vscode-extension/vibeguard-analyzer-0.1.0.vsix
+```
+
+**4. Reload the window** when prompted (`Developer: Reload Window`).
+
+**5. Keep the backends running** — the extension is only the client. Start both APIs whenever you want to analyze (see [Start the APIs](#start-the-apis-two-terminals) above). Use **VibeGuard: Check API Health** to confirm they are up.
+
+After install, open any Python project (not only the `vscode-extension` folder), run **Cmd+Shift+P** → **VibeGuard: Analyze File**.
+
+To update after code changes: bump `version` in `package.json`, run `npm run package` again, and reinstall the new VSIX.
 
 ---
 

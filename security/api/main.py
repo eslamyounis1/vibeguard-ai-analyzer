@@ -18,13 +18,21 @@ class FindingModel(BaseModel):
     message: str
     severity: str
     file: str
-    line: int
-    snippet: Optional[str]
+    line: Optional[int] = None
+    category: Optional[str] = None
+    col: Optional[int] = None
+    suggestion: Optional[str] = None
+    snippet: Optional[str] = None
 
 
 class ParseErrorModel(BaseModel):
     file: str
     message: str
+
+
+class SummaryModel(BaseModel):
+    by_severity: dict[str, int]
+    by_category: dict[str, int]
 
 
 class AnalyzeResponse(BaseModel):
@@ -34,7 +42,7 @@ class AnalyzeResponse(BaseModel):
     scanned_files: int
     findings: list[FindingModel]
     parse_errors: list[ParseErrorModel]
-    summary: dict[str, int]
+    summary: SummaryModel
 
 
 @app.get("/health")
@@ -97,7 +105,7 @@ async def analyze_python_code(
                 "scanned_files": 0,
                 "findings": [],
                 "parse_errors": [],
-                "summary": {},
+                "summary": {"by_severity": {}, "by_category": {}},
             },
         ) from exc
 
@@ -109,5 +117,5 @@ async def analyze_python_code(
         "scanned_files": d["scanned_files"],
         "findings": d["findings"],
         "parse_errors": d["parse_errors"],
-        "summary": d["summary"],
+        "summary": SummaryModel.model_validate(d["summary"]),
     }
