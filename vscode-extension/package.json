@@ -1,0 +1,131 @@
+{
+  "name": "vibeguard-analyzer",
+  "displayName": "VibeGuard Analyzer",
+  "description": "Send editor code to VibeGuard security analyzer and Python profiling sandbox.",
+  "version": "0.1.0",
+  "publisher": "vibeguard",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:python"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibeguard.analyze",
+        "title": "VibeGuard: Analyze File (Security + Sandbox)",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "vibeguard.analyzeSecurity",
+        "title": "VibeGuard: Security Scan Only",
+        "icon": "$(search)"
+      },
+      {
+        "command": "vibeguard.profile",
+        "title": "VibeGuard: Profile in Sandbox",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "vibeguard.analyzeSelection",
+        "title": "VibeGuard: Analyze Selection",
+        "icon": "$(selection)"
+      },
+      {
+        "command": "vibeguard.checkHealth",
+        "title": "VibeGuard: Check API Health",
+        "icon": "$(heart)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "vibeguard.analyze",
+          "when": "editorLangId == python",
+          "group": "vibeguard@1"
+        },
+        {
+          "command": "vibeguard.analyzeSelection",
+          "when": "editorLangId == python && editorHasSelection",
+          "group": "vibeguard@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vibeguard.analyze",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "vibeguard.analyzeSecurity",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "vibeguard.profile",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "vibeguard.analyzeSelection",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "vibeguard.checkHealth"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "VibeGuard",
+      "properties": {
+        "vibeguard.securityApiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "Base URL for the VibeGuard static security analyzer API."
+        },
+        "vibeguard.sandboxApiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8001",
+          "description": "Base URL for the VibeGuard Python profiling sandbox API."
+        },
+        "vibeguard.minSeverity": {
+          "type": "string",
+          "enum": [
+            "INFO",
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ],
+          "default": "LOW",
+          "description": "Minimum severity reported from the security analyzer."
+        },
+        "vibeguard.runSandboxOnAnalyze": {
+          "type": "boolean",
+          "default": true,
+          "description": "When running full analyze, also profile code in the sandbox."
+        },
+        "vibeguard.requestTimeoutMs": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 5000,
+          "description": "HTTP request timeout in milliseconds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npm run compile && npx @vscode/vsce@2.32.0 package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}
