@@ -3,6 +3,12 @@ from enum import Enum
 from typing import List, Optional
 
 
+class Confidence(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
 class Category(str, Enum):
     SECURITY = "SECURITY"
     CODE_SMELL = "CODE_SMELL"
@@ -42,6 +48,11 @@ class Finding:
     col: Optional[int] = None
     suggestion: Optional[str] = None
     snippet: Optional[str] = None
+    confidence: Optional[Confidence] = None
+    risk_score: Optional[int] = None
+    cwe: Optional[str] = None
+    owasp: Optional[str] = None
+    impact: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -55,6 +66,11 @@ class Finding:
             "col": self.col,
             "suggestion": self.suggestion,
             "snippet": self.snippet,
+            "confidence": self.confidence.value if self.confidence else None,
+            "risk_score": self.risk_score,
+            "cwe": self.cwe,
+            "owasp": self.owasp,
+            "impact": self.impact,
         }
 
 
@@ -87,7 +103,35 @@ class ScanResult:
         for f in self.findings:
             by_severity[f.severity.value] += 1
             by_category[f.category.value] += 1
-        return {"by_severity": by_severity, "by_category": by_category}
+        return {
+            "by_severity": by_severity,
+            "by_category": by_category,
+            "risk": self.risk_summary(),
+        }
+
+    def risk_summary(self) -> dict:
+        scored_findings = [
+            f
+            for f in self.findings
+            if f.category == Category.SECURITY and f.risk_score is not None
+        ]
+        if not scored_findings:
+            return {
+                "security_score": 100,
+                "max_risk_score": 0,
+                "average_risk_score": 0,
+                "high_confidence_count": 0,
+            }
+        risk_scores = [f.risk_score for f in scored_findings if f.risk_score is not None]
+        max_risk = max(risk_scores)
+        average_risk = round(sum(risk_scores) / len(risk_scores), 1)
+        high_confidence_count = sum(1 for f in scored_findings if f.confidence == Confidence.HIGH)
+        return {
+            "security_score": max(0, 100 - max_risk),
+            "max_risk_score": max_risk,
+            "average_risk_score": average_risk,
+            "high_confidence_count": high_confidence_count,
+        }
 
     def to_dict(self) -> dict:
         return {

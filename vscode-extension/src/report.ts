@@ -17,8 +17,20 @@ export function formatAnalyzeSummary(result: AnalyzeResponse): string {
     for (const f of result.findings) {
       lines.push(`[${f.severity}] ${f.rule_id} ${f.title}`);
       lines.push(`  Line ${f.line}: ${f.message}`);
+      const metadata = [f.cwe, f.owasp, f.confidence ? `Confidence: ${f.confidence}` : undefined, f.risk_score ? `Risk: ${f.risk_score}/100` : undefined]
+        .filter(Boolean)
+        .join(" | ");
+      if (metadata) {
+        lines.push(`  ${metadata}`);
+      }
+      if (f.impact) {
+        lines.push(`  Impact: ${f.impact}`);
+      }
       if (f.snippet) {
         lines.push(`  Code: ${f.snippet.trim()}`);
+      }
+      if (f.suggestion) {
+        lines.push(`  Fix: ${f.suggestion}`);
       }
       lines.push("");
     }
@@ -35,6 +47,13 @@ export function formatAnalyzeSummary(result: AnalyzeResponse): string {
       .map(([sev, count]) => `${count} ${sev.toLowerCase()}`);
     if (parts.length > 0) {
       lines.push(`Summary: ${parts.join(", ")}`);
+    }
+    if ("risk" in summary && typeof summary.risk === "object" && summary.risk !== null) {
+      const risk = summary.risk as Record<string, number>;
+      lines.push(
+        `Security score: ${risk.security_score}/100 | ` +
+          `max risk=${risk.max_risk_score}/100 | avg risk=${risk.average_risk_score}/100`,
+      );
     }
   }
 

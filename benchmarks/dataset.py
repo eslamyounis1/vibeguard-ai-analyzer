@@ -350,6 +350,42 @@ def build_report(entries: list[str]) -> str:
     return "\\n".join(f"Entry: {e}" for e in entries)
 """,
     ),
+
+    # ── S11: Modern web security footguns ────────────────────────────────────
+    Sample(
+        id="S11",
+        label="Unsafe YAML, TLS bypass, debug mode, and SQL construction",
+        source="ai-generated",
+        description="AI-generated service helper with common privacy and input-handling security mistakes.",
+        tags=["security", "privacy", "web"],
+        expected_rules={
+            "unsafe_yaml_load",
+            "tls_verification_disabled",
+            "debug_mode_enabled",
+            "sql_query_construction",
+        },
+        code="""
+import requests
+import yaml
+
+
+def load_config(raw):
+    return yaml.load(raw)
+
+
+def fetch_user_profile(user_id):
+    response = requests.get(f"https://api.example.com/users/{user_id}", verify=False)
+    return response.json()
+
+
+def find_user(cursor, username):
+    cursor.execute(f"SELECT * FROM users WHERE username = '{username}'")
+    return cursor.fetchone()
+
+
+app.run(debug=True)
+""",
+    ),
 ]
 
 SAMPLES_BY_ID: dict[str, Sample] = {s.id: s for s in SAMPLES}

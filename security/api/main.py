@@ -23,6 +23,11 @@ class FindingModel(BaseModel):
     col: Optional[int] = None
     suggestion: Optional[str] = None
     snippet: Optional[str] = None
+    confidence: Optional[str] = None
+    risk_score: Optional[int] = None
+    cwe: Optional[str] = None
+    owasp: Optional[str] = None
+    impact: Optional[str] = None
 
 
 class ParseErrorModel(BaseModel):
@@ -33,6 +38,7 @@ class ParseErrorModel(BaseModel):
 class SummaryModel(BaseModel):
     by_severity: dict[str, int]
     by_category: dict[str, int]
+    risk: Optional[dict[str, Any]] = None
 
 
 class AnalyzeResponse(BaseModel):

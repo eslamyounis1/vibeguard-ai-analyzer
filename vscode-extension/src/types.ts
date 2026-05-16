@@ -9,6 +9,12 @@ export interface Finding {
   line: number;
   category?: string;
   snippet?: string | null;
+  confidence?: "LOW" | "MEDIUM" | "HIGH" | null;
+  risk_score?: number | null;
+  cwe?: string | null;
+  owasp?: string | null;
+  impact?: string | null;
+  suggestion?: string | null;
 }
 
 export interface ParseError {

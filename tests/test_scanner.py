@@ -130,3 +130,44 @@ class TestSnippetControl:
             assert result.findings[0].snippet is None
         finally:
             os.unlink(path)
+
+
+class TestSecurityMetadata:
+    def test_security_finding_includes_professional_metadata(self):
+        result = Scanner().scan_source("eval(user_input)\n")
+        finding = result.findings[0]
+        assert finding.cwe == "CWE-95"
+        assert finding.owasp == "A03:2021 Injection"
+        assert finding.confidence.value == "HIGH"
+        assert finding.risk_score == 95
+        assert finding.impact
+
+    def test_summary_includes_security_risk_score(self):
+        result = Scanner().scan_source("eval(user_input)\n")
+        risk = result.summary()["risk"]
+        assert risk["security_score"] == 5
+        assert risk["max_risk_score"] == 95
+        assert risk["average_risk_score"] == 95
+        assert risk["high_confidence_count"] == 1
+
+
+class TestIgnoreComments:
+    def test_inline_ignore_suppresses_matching_rule(self):
+        code = "eval(user_input)  # vibeguard: ignore eval_exec_usage\n"
+        result = Scanner().scan_source(code)
+        assert result.findings == []
+
+    def test_previous_line_ignore_suppresses_matching_rule(self):
+        code = "import yaml\n# vibeguard: ignore unsafe_yaml_load\nyaml.load(raw)\n"
+        result = Scanner().scan_source(code)
+        assert [finding.rule_id for finding in result.findings] == []
+
+    def test_ignore_all_suppresses_any_rule(self):
+        code = "# vibeguard: ignore all\neval(user_input)\n"
+        result = Scanner().scan_source(code)
+        assert result.findings == []
+
+    def test_ignore_does_not_suppress_other_rules(self):
+        code = "eval(user_input)  # vibeguard: ignore hardcoded_secret\n"
+        result = Scanner().scan_source(code)
+        assert [finding.rule_id for finding in result.findings] == ["eval_exec_usage"]

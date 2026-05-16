@@ -111,12 +111,12 @@ Generates optimized code and explanations, with the option to automatically refa
 VibeGuard is currently in an **early but working stage**.
 
 **What is available now:**
-- Security scanning for Python projects (static analysis)
+- Security, code-quality, and performance scanning for Python projects (static analysis)
 - Runtime profiling through a sandbox API (time, memory, estimated energy)
 - Benchmarking tools to measure detection quality
 
 **What comes next:**
-- Broader code-quality analysis
+- Broader optimization guidance
 - Automated optimization and repair suggestions
 - End-to-end reporting across quality, efficiency, and security
 
@@ -189,13 +189,30 @@ vibeguard scan ./project --output report.txt
 
 | Rule ID | Title | Severity |
 |---------|-------|----------|
-| VG001 | Use of `eval()` | HIGH |
-| VG002 | Use of `exec()` | HIGH |
+| VG001 | Use of `eval()` | CRITICAL |
+| VG002 | Use of `exec()` | CRITICAL |
 | VG003 | Hardcoded Secret | HIGH |
 | VG004 | Insecure Randomness | MEDIUM |
 | VG005 | Dangerous Subprocess Usage (`shell=True`) | HIGH |
 | VG006 | Pickle Deserialization | HIGH |
 | VG007 | Assert Used for Security Check | MEDIUM |
+| VG008 | Weak Hash Algorithm | HIGH |
+| VG009 | OS Shell Execution | HIGH |
+| VG010 | Unsafe YAML Deserialization | HIGH |
+| VG011 | TLS Verification Disabled | HIGH |
+| VG012 | Debug Mode Enabled | MEDIUM |
+| VG013 | Dynamic SQL Query Construction | HIGH |
+
+The security analyzer now covers unsafe dynamic execution, secrets, weak cryptography, shell execution, unsafe deserialization, TLS bypasses, debug server configuration, and SQL query construction risks.
+
+Security findings also include optional professional metadata for reports and editor integrations: confidence, risk score, CWE, OWASP category, impact, and remediation guidance.
+
+To suppress an intentional finding, add an inline or previous-line ignore comment:
+
+```python
+# vibeguard: ignore sql_query_construction
+cursor.execute(query)
+```
 
 ---
 
@@ -224,15 +241,19 @@ vibeguard/
 ├── cli/            Command-line interface
 ├── core/           Scanner orchestration
 ├── analyzers/
-│   └── security/   Security analyzer (Phase 1)
+│   ├── security/   Security and privacy analyzer
+│   ├── smells/     Code smell analyzer
+│   └── performance/ Performance analyzer
 ├── rules/
-│   └── security/   Security rules VG001–VG007
+│   ├── security/   Security rules VG001–VG013
+│   ├── smells/     Code smell rules
+│   └── performance/ Performance rules
 ├── models/         Finding and ScanResult data models
 ├── reporters/      Text and JSON output formatters
 └── utils/          File traversal helpers
 ```
 
-Future analyzers (quality, performance, energy) plug in as siblings under `analyzers/` and `rules/`.
+Additional analyzers plug in as siblings under `analyzers/` and `rules/`.
 
 ---
 

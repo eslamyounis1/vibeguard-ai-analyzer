@@ -40,7 +40,20 @@ class TextReporter:
                 lines.append(f"  File: {finding.file}:{finding.line}")
                 if finding.snippet:
                     lines.append(f"  Code: {finding.snippet}")
+                meta = []
+                if finding.cwe:
+                    meta.append(finding.cwe)
+                if finding.owasp:
+                    meta.append(finding.owasp)
+                if finding.confidence:
+                    meta.append(f"confidence={finding.confidence.value}")
+                if finding.risk_score is not None:
+                    meta.append(f"risk={finding.risk_score}/100")
+                if meta:
+                    lines.append(f"  Meta: {' | '.join(meta)}")
                 lines.append(f"  {finding.message}")
+                if finding.impact:
+                    lines.append(f"  Impact: {finding.impact}")
                 if finding.suggestion:
                     lines.append(f"  Fix:  {finding.suggestion}")
                 lines.append("")
@@ -57,6 +70,7 @@ class TextReporter:
         summary = result.summary()
         by_sev = summary["by_severity"]
         by_cat = summary["by_category"]
+        risk = summary.get("risk", {})
         lines.append(
             f"Scanned {result.scanned_files} file(s). "
             f"Found {len(result.findings)} issue(s): "
@@ -64,5 +78,11 @@ class TextReporter:
             f"{by_sev['MEDIUM']} medium, {by_sev['LOW']} low, {by_sev['INFO']} info  |  "
             f"security={by_cat['SECURITY']}  smell={by_cat['CODE_SMELL']}  perf={by_cat['PERFORMANCE']}"
         )
+        if risk:
+            lines.append(
+                f"Security score: {risk['security_score']}/100  |  "
+                f"max risk={risk['max_risk_score']}/100  |  "
+                f"avg risk={risk['average_risk_score']}/100"
+            )
 
         return "\n".join(lines)
