@@ -108,17 +108,20 @@ Generates optimized code and explanations, with the option to automatically refa
 
 ## Current Stage
 
-VibeGuard is currently in an **early but working stage**.
+VibeGuard is currently in a **working, end-to-end stage**.
 
 **What is available now:**
 - Security, code-quality, and performance scanning for Python projects (static analysis)
-- Runtime profiling through a sandbox API (time, memory, estimated energy)
-- Benchmarking tools to measure detection quality
+- Runtime profiling through a sandbox API (self-time CPU, memory, estimated energy)
+- **Automatic safe fixes** for several issue classes (`vibeguard scan --fix`)
+- **Orchestration pipeline** that corroborates static performance findings with measured runtime cost
+- **Comparative before/after metrics** (security, performance, energy) for proposed fixes
+- Benchmarking tools to measure detection quality (Precision / Recall / F1)
 
 **What comes next:**
-- Broader optimization guidance
-- Automated optimization and repair suggestions
-- End-to-end reporting across quality, efficiency, and security
+- More auto-fixers (string-concat-in-loop, nested-loop restructuring)
+- Optional AI-assisted refactoring on top of the deterministic fixers
+- Higher-fidelity energy measurement (RAPL / CodeCarbon)
 
 ---
 
@@ -167,6 +170,32 @@ vibeguard scan ./project --severity medium
 vibeguard scan ./project --output report.json --format json
 vibeguard scan ./project --output report.txt
 ```
+
+### Apply automatic fixes
+
+VibeGuard can rewrite a subset of findings into safe, behavior-aware fixes.
+Every fix is verified by re-scanning the result, and is only applied when it
+does not introduce new findings.
+
+```bash
+# Preview changes as a unified diff (nothing is written)
+vibeguard scan ./project --fix --dry-run
+
+# Apply fixes in place
+vibeguard scan ./project --fix
+
+# Machine-readable fix report (includes diffs)
+vibeguard scan ./project --fix --dry-run --format json
+```
+
+Currently auto-fixable rules:
+
+| Rule | Fix |
+|---|---|
+| `weak_hash_algorithm` | `hashlib.md5/sha1` → `hashlib.sha256` |
+| `unsafe_yaml_load` | `yaml.load(x)` → `yaml.safe_load(x)` |
+| `tls_verification_disabled` | `verify=False` → `verify=True` |
+| `assert_used_for_validation` | `assert cond, msg` → `if not (cond): raise AssertionError(msg)` |
 
 ### Other flags
 
@@ -237,9 +266,10 @@ Scanned 4 file(s). Found 3 issue(s): 2 high, 1 medium, 0 low.
 ## Project Structure
 
 ```
-vibeguard/
-├── cli/            Command-line interface
+security/
+├── cli/            Command-line interface (scan, --fix)
 ├── core/           Scanner orchestration
+├── pipeline.py     Static<->dynamic orchestration + before/after comparison
 ├── analyzers/
 │   ├── security/   Security and privacy analyzer
 │   ├── smells/     Code smell analyzer
@@ -248,6 +278,8 @@ vibeguard/
 │   ├── security/   Security rules VG001–VG013
 │   ├── smells/     Code smell rules
 │   └── performance/ Performance rules
+├── fixers/         Auto-fix (optimization) engine + per-rule fixers
+├── dynamic/        Profiler client for the isolated sandbox
 ├── models/         Finding and ScanResult data models
 ├── reporters/      Text and JSON output formatters
 └── utils/          File traversal helpers
@@ -316,6 +348,14 @@ pip install -r security/api/requirements.txt
 pip install -e .
 uvicorn security.api.main:app --reload --port 8000
 ```
+
+The analyzer API exposes:
+
+- `GET  /health`
+- `POST /analyze` — static findings + summary
+- `POST /fix` — safe auto-fixed code + applied fixes
+- `POST /analyze-profile` — static analysis + dynamic profiling with performance corroboration
+- `POST /compare` — auto-fix with before/after security, performance, and energy metrics
 
 Sandbox profiler (port 8001):
 

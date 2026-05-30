@@ -36,6 +36,10 @@ def apply_limits(cpu_seconds: int, memory_mb: int) -> None:
     _set_soft_limit(resource.RLIMIT_FSIZE, 1_000_000)
 
 
+# Low-fidelity energy proxy: energy(J) = cpu_seconds * CPU_POWER_WATTS.
+# This is a coarse linear model (ignores frequency scaling, memory power, and
+# profiler overhead) and is reported as an estimate only. For higher fidelity,
+# integrate RAPL (pyRAPL) or CodeCarbon on supported hardware.
 CPU_POWER_WATTS = 50.0
 
 
@@ -45,6 +49,11 @@ def _function_name(frame: object) -> str:
 
 
 def _summarize_function_metrics(function_totals: dict[str, dict[str, float]]) -> list[dict]:
+    """Return every profiled function sorted by self CPU time (descending).
+
+    Times stored here are *self* times (callee time already subtracted), so the
+    list can be summed without double-counting nested calls.
+    """
     summary = []
     for function_key, data in function_totals.items():
         cpu_seconds = data["cpu_seconds"]
@@ -59,7 +68,7 @@ def _summarize_function_metrics(function_totals: dict[str, dict[str, float]]) ->
             }
         )
 
-    return sorted(summary, key=lambda item: item["cpu_time_seconds"], reverse=True)[:50]
+    return sorted(summary, key=lambda item: item["cpu_time_seconds"], reverse=True)
 
 
 def run_user_code(code: str) -> dict:
@@ -80,6 +89,10 @@ def run_user_code(code: str) -> dict:
                     "start_cpu": time.process_time(),
                     "start_wall": time.perf_counter(),
                     "start_memory": memory_now,
+                    # CPU/wall time consumed by direct + transitive callees of
+                    # this frame, used to derive *self* time on return.
+                    "children_cpu": 0.0,
+                    "children_wall": 0.0,
                 }
             )
         elif event in ("return", "exception") and call_stack:
@@ -87,12 +100,25 @@ def run_user_code(code: str) -> dict:
             end_wall = time.perf_counter()
             memory_now, _ = tracemalloc.get_traced_memory()
             start = call_stack.pop()
+
+            gross_cpu = max(0.0, end_cpu - start["start_cpu"])
+            gross_wall = max(0.0, end_wall - start["start_wall"])
+            self_cpu = max(0.0, gross_cpu - start["children_cpu"])
+            self_wall = max(0.0, gross_wall - start["children_wall"])
+
             function_key = start["function_key"]
             totals = function_totals[function_key]
             totals["calls"] += 1
-            totals["cpu_seconds"] += max(0.0, end_cpu - start["start_cpu"])
-            totals["wall_seconds"] += max(0.0, end_wall - start["start_wall"])
+            totals["cpu_seconds"] += self_cpu
+            totals["wall_seconds"] += self_wall
             totals["memory_delta_bytes"] += memory_now - start["start_memory"]
+
+            # Attribute this frame's gross time to its parent so the parent's
+            # self time excludes time spent inside this call.
+            if call_stack:
+                parent = call_stack[-1]
+                parent["children_cpu"] += gross_cpu
+                parent["children_wall"] += gross_wall
         return trace_calls
 
     try:
@@ -116,10 +142,14 @@ def run_user_code(code: str) -> dict:
         }
     current_mem, peak_mem = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-    top_functions = _summarize_function_metrics(function_totals)
-    total_cpu = sum(item["cpu_time_seconds"] for item in top_functions)
-    total_wall = sum(item["wall_time_seconds"] for item in top_functions)
-    total_energy = sum(item["energy_joules_estimate"] for item in top_functions)
+
+    all_functions = _summarize_function_metrics(function_totals)
+    # Totals are computed across ALL functions (self times, no double counting);
+    # the returned profile is capped to the heaviest 50 for readability.
+    total_cpu = sum(item["cpu_time_seconds"] for item in all_functions)
+    total_wall = sum(item["wall_time_seconds"] for item in all_functions)
+    total_energy = sum(item["energy_joules_estimate"] for item in all_functions)
+    top_functions = all_functions[:50]
 
     return {
         "ok": True,
@@ -136,6 +166,7 @@ def run_user_code(code: str) -> dict:
             "memory_current_bytes": int(current_mem),
             "memory_peak_bytes": int(peak_mem),
             "assumed_cpu_power_watts": CPU_POWER_WATTS,
+            "energy_model": "linear_cpu_proxy (estimate only)",
         },
     }
 
