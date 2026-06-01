@@ -5,10 +5,12 @@ from security.models.finding import Finding
 from security.rules.performance.base import PerformanceRule
 from security.rules.performance.pf001_nested_loop import NestedLoopRule
 from security.rules.performance.pf002_string_concat_loop import StringConcatInLoopRule
+from security.rules.performance.pf003_membership_in_loop import MembershipInLoopRule
 
 _DEFAULT_RULES: List[PerformanceRule] = [
     NestedLoopRule(),
     StringConcatInLoopRule(),
+    MembershipInLoopRule(),
 ]
 
 

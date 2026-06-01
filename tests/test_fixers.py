@@ -1,8 +1,8 @@
 """Tests for the auto-fix (optimization) engine."""
 
-from security.fixers.base import Edit, apply_edits, compute_line_offsets, offset_of
-from security.fixers.engine import fix_source
-from security.fixers.registry import fixable_rule_ids
+from fixers.base import Edit, apply_edits, compute_line_offsets, offset_of
+from fixers.engine import fix_source
+from fixers.registry import fixable_rule_ids
 
 
 class TestEditApplication:

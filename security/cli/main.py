@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from security.core.scanner import Scanner
-from security.fixers.engine import fix_source
+from fixers.engine import fix_source
 from security.models.finding import Severity
 from security.reporters.json_reporter import JsonReporter
 from security.reporters.text import TextReporter

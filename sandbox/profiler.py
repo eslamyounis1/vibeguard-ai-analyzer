@@ -2,8 +2,9 @@
 
 This invokes ``sandbox/sandbox_runner.py`` in a separate, resource-limited
 ``python3 -I`` subprocess (the same mechanism the FastAPI sandbox uses) and
-returns the parsed profile dictionary. It lets the orchestration pipeline use
-dynamic measurements without going through the HTTP service.
+returns the parsed profile dictionary. All runtime metrics (CPU, wall time,
+memory, estimated energy) are produced inside the sandbox; callers only
+receive the measured results.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
-_RUNNER_PATH = Path(__file__).resolve().parents[2] / "sandbox" / "sandbox_runner.py"
+_RUNNER_PATH = Path(__file__).resolve().parent / "sandbox_runner.py"
 
 DEFAULT_CPU_SECONDS = 10
 DEFAULT_MEMORY_MB = 512
@@ -39,8 +40,14 @@ def profile_code(
     cpu_seconds: int = DEFAULT_CPU_SECONDS,
     memory_mb: int = DEFAULT_MEMORY_MB,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    mode: str = "profile",
+    energy_backend: str = "auto",
 ) -> Dict[str, Any]:
-    """Profile ``code`` in the sandbox and return the runner's result dict."""
+    """Run ``code`` in the sandbox and return the runner's result dict.
+
+    ``mode="profile"`` collects per-function self-time hotspots; ``mode="measure"``
+    does a clean energy/time run (no profiler overhead) using ``energy_backend``.
+    """
     if not _RUNNER_PATH.exists():
         return _error("SandboxMissing", f"Sandbox runner not found at {_RUNNER_PATH}.")
 
@@ -58,6 +65,10 @@ def profile_code(
             str(cpu_seconds),
             "--memory-mb",
             str(memory_mb),
+            "--mode",
+            mode,
+            "--energy-backend",
+            energy_backend,
         ]
 
         try:
@@ -79,3 +90,21 @@ def profile_code(
             return json.loads(completed.stdout)
         except json.JSONDecodeError:
             return _error("InvalidSandboxResponse", "Sandbox returned non-JSON output.")
+
+
+def measure_code(
+    code: str,
+    energy_backend: str = "auto",
+    cpu_seconds: int = DEFAULT_CPU_SECONDS,
+    memory_mb: int = DEFAULT_MEMORY_MB,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> Dict[str, Any]:
+    """Clean energy/time measurement run (no profiler overhead)."""
+    return profile_code(
+        code,
+        cpu_seconds=cpu_seconds,
+        memory_mb=memory_mb,
+        timeout_seconds=timeout_seconds,
+        mode="measure",
+        energy_backend=energy_backend,
+    )

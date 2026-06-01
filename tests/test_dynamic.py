@@ -1,7 +1,7 @@
 """Tests for sandbox metric correctness and the orchestration pipeline."""
 
+from orchestrator.pipeline import analyze_and_profile, compare_fix
 from sandbox.sandbox_runner import run_user_code
-from security.pipeline import analyze_and_profile, compare_fix
 
 
 class TestSelfTimeAccounting:

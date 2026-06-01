@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from security.core.scanner import Scanner
-from security.fixers.base import Edit, apply_edits, compute_line_offsets
-from security.fixers.registry import FIXERS_BY_RULE
+from fixers.base import Edit, apply_edits, compute_line_offsets
+from fixers.registry import FIXERS_BY_RULE
 
 
 @dataclass

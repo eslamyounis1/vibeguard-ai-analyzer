@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from typing import List, Optional
 
-from security.fixers.base import Edit, Fixer, node_span
+from fixers.base import Edit, Fixer, node_span
 from security.models.finding import Finding
 
 

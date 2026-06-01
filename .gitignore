@@ -8,3 +8,11 @@ build/
 .pytest_cache/
 vscode-extension/node_modules/
 vscode-extension/out/
+
+# Study artifacts and caches (experiments/corpus)
+data/
+results/
+.venv-test/
+
+# Downloaded third-party datasets (large; fetch via scripts, do not commit)
+dataset/

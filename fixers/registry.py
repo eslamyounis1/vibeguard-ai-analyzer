@@ -4,17 +4,21 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from security.fixers.base import Fixer
-from security.fixers.fix_assert import AssertFixer
-from security.fixers.fix_tls_verify import TlsVerifyFixer
-from security.fixers.fix_weak_hash import WeakHashFixer
-from security.fixers.fix_yaml_load import YamlLoadFixer
+from fixers.base import Fixer
+from fixers.fix_assert import AssertFixer
+from fixers.fix_membership_in_loop import MembershipInLoopFixer
+from fixers.fix_string_concat import StringConcatFixer
+from fixers.fix_tls_verify import TlsVerifyFixer
+from fixers.fix_weak_hash import WeakHashFixer
+from fixers.fix_yaml_load import YamlLoadFixer
 
 _FIXERS: List[Fixer] = [
     WeakHashFixer(),
     YamlLoadFixer(),
     TlsVerifyFixer(),
     AssertFixer(),
+    StringConcatFixer(),
+    MembershipInLoopFixer(),
 ]
 
 FIXERS_BY_RULE: Dict[str, List[Fixer]] = {}

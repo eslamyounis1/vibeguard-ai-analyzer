@@ -196,6 +196,12 @@ Currently auto-fixable rules:
 | `unsafe_yaml_load` | `yaml.load(x)` → `yaml.safe_load(x)` |
 | `tls_verification_disabled` | `verify=False` → `verify=True` |
 | `assert_used_for_validation` | `assert cond, msg` → `if not (cond): raise AssertionError(msg)` |
+| `string_concat_in_loop` | loop `s += x` → list append + `"".join(...)` (energy) |
+| `membership_in_loop` | `x in [a, b, c]` → `x in {a, b, c}` (O(1) lookups) |
+
+The two performance fixers can additionally be validated against a task's own
+test suite via the orchestrator's `compare_fix(..., tests=...)`, which reports
+`behavior_verified` only when the tests pass both before and after the fix.
 
 ### Other flags
 
@@ -266,26 +272,78 @@ Scanned 4 file(s). Found 3 issue(s): 2 high, 1 medium, 0 low.
 ## Project Structure
 
 ```
-security/
-├── cli/            Command-line interface (scan, --fix)
-├── core/           Scanner orchestration
-├── pipeline.py     Static<->dynamic orchestration + before/after comparison
-├── analyzers/
-│   ├── security/   Security and privacy analyzer
-│   ├── smells/     Code smell analyzer
-│   └── performance/ Performance analyzer
-├── rules/
-│   ├── security/   Security rules VG001–VG013
-│   ├── smells/     Code smell rules
-│   └── performance/ Performance rules
-├── fixers/         Auto-fix (optimization) engine + per-rule fixers
-├── dynamic/        Profiler client for the isolated sandbox
-├── models/         Finding and ScanResult data models
-├── reporters/      Text and JSON output formatters
-└── utils/          File traversal helpers
+.
+├── security/           Security & static analysis (DETECTION ONLY)
+│   ├── cli/            Command-line interface (scan, --fix)
+│   ├── core/           Scanner orchestration
+│   ├── analyzers/      security / smells / performance analyzers
+│   ├── rules/          security / smells / performance rules
+│   ├── models/         Finding and ScanResult data models
+│   ├── reporters/      Text and JSON output formatters
+│   ├── api/            Security-only HTTP API (/analyze)
+│   └── utils/          File traversal helpers
+├── fixers/             Auto-fix (optimization) engine + per-rule fixers
+│                       (security + energy-relevant performance fixers)
+├── sandbox/            Dynamic analysis — ALL runtime metrics live here
+│   ├── sandbox_runner.py   Isolated runner: profile mode + clean measure mode
+│   ├── profiler.py         Subprocess client (profile_code / measure_code)
+│   ├── energy/             Pluggable EnergyMeter backends (RAPL, CodeCarbon,
+│   │                       powermetrics, linear proxy) + get_meter("auto")
+│   └── main.py             Sandbox HTTP API (/profile)
+├── orchestrator/       Cross-cutting layer (depends on security + sandbox)
+│   ├── pipeline.py     Static<->dynamic corroboration + before/after comparison
+│   └── api.py          Orchestration HTTP API (/fix, /analyze-profile, /compare)
+├── corpus/             Study corpus: schema, JSONL storage, dataset loaders,
+│                       LLM providers (cached), build.py CLI
+└── experiments/        Research harness: measure.py (stats), baselines.py
+                        (tool comparison), run_study.py (RQ1–RQ5 outputs)
 ```
 
+**Layer boundaries:** runtime metrics (energy, memory, CPU, time) live only in
+`sandbox/`; `security/` contains security/static *detection* only; `fixers/`
+holds all auto-fixes; the `orchestrator/` is the single layer permitted to
+combine detection with dynamic measurement (and hosts the `/fix` endpoint).
+
 Additional analyzers plug in as siblings under `analyzers/` and `rules/`.
+
+---
+
+## Research Harness (empirical study)
+
+VibeGuard doubles as a research instrument for studying how secure, clean, and
+energy-efficient AI-generated code is, and how much is auto-repairable. Heavy
+dependencies are optional extras so the core tool stays dependency-free:
+
+```bash
+pip install -e ".[experiments]"     # pandas, scipy, matplotlib, bandit, semgrep, ruff, ...
+pip install -e ".[providers]"       # openai, anthropic (Ollama needs no SDK)
+```
+
+**Real energy measurement.** The sandbox runs a clean "measure" mode (no
+`sys.setprofile`, which distorts energy) and wraps execution in a pluggable
+`EnergyMeter`. `get_meter("auto")` picks the most credible available backend
+(RAPL > CodeCarbon > powermetrics > linear proxy) and records which one was
+used. Swap backends with `--energy-backend rapl` on Linux.
+
+**Statistical rigor.** `experiments/measure.py` runs each snippet N times
+(warm-ups discarded), reports mean/median/stdev/95% CI, and compares variants
+with Mann-Whitney U + Cliff's delta.
+
+**Corpus.** `corpus/build.py` loads public datasets (HumanEval/MBPP with tests,
+security ground truth) and/or generates AI solutions via cached LLM providers:
+
+```bash
+python -m corpus.build --datasets security humaneval --out data/corpus/corpus.jsonl
+python -m corpus.build --datasets humaneval --generate openai:gpt-4o-mini ollama:llama3.2 \
+    --out data/corpus/corpus.jsonl
+```
+
+**Run the study (RQ1–RQ5).** Produces CSVs, optional matplotlib plots, and a
+methods/threats note:
+
+```bash
+python -m experiments.run_study --out-dir results --runs 20 --energy-backend auto
+```
 
 ---
 
@@ -349,10 +407,22 @@ pip install -e .
 uvicorn security.api.main:app --reload --port 8000
 ```
 
-The analyzer API exposes:
+The security analyzer API is **security-only** (detection) and exposes:
 
 - `GET  /health`
 - `POST /analyze` — static findings + summary
+
+Auto-fix and cross-cutting endpoints that combine static analysis with sandbox
+profiling live in the **orchestrator** API instead (run it as a separate
+service):
+
+```bash
+pip install -r orchestrator/requirements.txt
+pip install -e .
+uvicorn orchestrator.api:app --reload --port 8002
+```
+
+- `GET  /health`
 - `POST /fix` — safe auto-fixed code + applied fixes
 - `POST /analyze-profile` — static analysis + dynamic profiling with performance corroboration
 - `POST /compare` — auto-fix with before/after security, performance, and energy metrics

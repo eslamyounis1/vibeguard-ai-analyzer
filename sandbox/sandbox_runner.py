@@ -9,6 +9,7 @@ import tracemalloc
 import sys
 import traceback
 from collections import defaultdict
+from pathlib import Path
 
 
 def _clamp_limit(requested: int, hard_limit: int) -> int:
@@ -171,11 +172,80 @@ def run_user_code(code: str) -> dict:
     }
 
 
+def run_user_code_measure(code: str, energy_backend: str = "auto") -> dict:
+    """Clean energy/time measurement run.
+
+    Unlike :func:`run_user_code`, this does NOT install ``sys.setprofile`` (which
+    adds large per-call overhead and contaminates energy/time numbers). It wraps
+    the whole execution in a single :class:`EnergyMeter` so the reported energy
+    reflects the program, not the profiler. Use this for headline metrics; use
+    ``run_user_code`` for per-function hotspot attribution.
+    """
+    # Under ``python3 -I`` the script directory is not on sys.path, so make the
+    # sandbox package importable before pulling in the energy backends.
+    repo_root = str(Path(__file__).resolve().parents[1])
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from sandbox.energy import get_meter
+
+    meter = get_meter(energy_backend)
+    globals_dict = {"__name__": "__main__", "__builtins__": __builtins__}
+    user_stdout = io.StringIO()
+    user_stderr = io.StringIO()
+
+    try:
+        compiled = compile(code, "<user_code>", "exec")
+        tracemalloc.start()
+        cpu_start = time.process_time()
+        with contextlib.redirect_stdout(user_stdout), contextlib.redirect_stderr(user_stderr):
+            with meter.measure():
+                exec(compiled, globals_dict, None)  # noqa: S102 - explicit sandbox subprocess
+        cpu_seconds = max(0.0, time.process_time() - cpu_start)
+    except Exception:
+        tracemalloc.stop()
+        return {
+            "ok": False,
+            "error_type": "ExecutionError",
+            "error_message": traceback.format_exc(limit=10),
+            "profile": [],
+            "stdout": user_stdout.getvalue(),
+            "stderr": user_stderr.getvalue(),
+            "totals": None,
+        }
+
+    current_mem, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    sample = meter.result
+
+    return {
+        "ok": True,
+        "error_type": None,
+        "error_message": None,
+        "profile": [],
+        "stdout": user_stdout.getvalue(),
+        "stderr": user_stderr.getvalue(),
+        "text_report": None,
+        "totals": {
+            "cpu_time_seconds": round(cpu_seconds, 6),
+            "wall_time_seconds": round(sample.wall_seconds, 6),
+            "energy_joules_estimate": sample.energy_joules,
+            "energy_backend": sample.backend,
+            "pkg_joules": sample.pkg_joules,
+            "dram_joules": sample.dram_joules,
+            "memory_current_bytes": int(current_mem),
+            "memory_peak_bytes": int(peak_mem),
+            "energy_model": sample.note,
+        },
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--code-path", required=True)
     parser.add_argument("--cpu-seconds", type=int, default=2)
     parser.add_argument("--memory-mb", type=int, default=128)
+    parser.add_argument("--mode", choices=["profile", "measure"], default="profile")
+    parser.add_argument("--energy-backend", default="auto")
     args = parser.parse_args()
 
     apply_limits(cpu_seconds=args.cpu_seconds, memory_mb=args.memory_mb)
@@ -183,7 +253,10 @@ def main() -> None:
     with open(args.code_path, "r", encoding="utf-8") as code_file:
         code = code_file.read()
 
-    result = run_user_code(code)
+    if args.mode == "measure":
+        result = run_user_code_measure(code, energy_backend=args.energy_backend)
+    else:
+        result = run_user_code(code)
     sys.stdout.write(json.dumps(result))
     sys.stdout.flush()
 

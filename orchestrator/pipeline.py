@@ -1,5 +1,10 @@
 """End-to-end orchestration across VibeGuard's layers.
 
+This module is intentionally *outside* both the ``security`` package (static
+security analysis) and the ``sandbox`` package (dynamic runtime metrics). It is
+the only layer allowed to depend on both: it combines static findings with
+sandbox-measured runtime cost.
+
 Two entry points:
 
 * :func:`analyze_and_profile` runs static analysis *and* dynamic profiling on
@@ -14,9 +19,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from sandbox.profiler import measure_code
 from security.core.scanner import Scanner
-from security.dynamic.profiler import profile_code
-from security.fixers.engine import fix_source
+from fixers.engine import fix_source
 from security.models.finding import Category
 
 
@@ -24,7 +29,9 @@ def _totals(profile: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return profile.get("totals") if profile.get("ok") else None
 
 
-def analyze_and_profile(code: str, run_dynamic: bool = True) -> Dict[str, Any]:
+def analyze_and_profile(
+    code: str, run_dynamic: bool = True, energy_backend: str = "auto"
+) -> Dict[str, Any]:
     """Static scan + optional dynamic profile, with performance corroboration."""
     result = Scanner().scan_source(code)
     static = result.to_dict()
@@ -39,7 +46,7 @@ def analyze_and_profile(code: str, run_dynamic: bool = True) -> Dict[str, Any]:
     }
 
     if run_dynamic:
-        dynamic = profile_code(code)
+        dynamic = measure_code(code, energy_backend=energy_backend)
         totals = _totals(dynamic)
         if totals is not None:
             corroboration["measured"] = {
@@ -76,8 +83,26 @@ def _metric_delta(before: Optional[float], after: Optional[float]) -> Optional[D
     return {"before": before, "after": after, "delta": delta, "pct_change": pct}
 
 
-def compare_fix(code: str, run_dynamic: bool = True) -> Dict[str, Any]:
-    """Auto-fix the code and report before/after comparative metrics."""
+def _tests_pass(code: str, tests: str, energy_backend: str) -> bool:
+    """True if ``code`` followed by ``tests`` executes without raising."""
+    combined = f"{code}\n\n{tests}\n"
+    return bool(measure_code(combined, energy_backend=energy_backend).get("ok"))
+
+
+def compare_fix(
+    code: str,
+    run_dynamic: bool = True,
+    energy_backend: str = "auto",
+    tests: Optional[str] = None,
+    cweval_task_stem: Optional[str] = None,
+    cweval_test_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Auto-fix the code and report before/after comparative metrics.
+
+    When ``tests`` (executable Python that raises on failure) is provided, the
+    fix is validated in the sandbox. For CWEval tasks, pass ``cweval_task_stem``
+    and ``cweval_test_path`` to run the official pytest oracles instead.
+    """
     fix = fix_source(code)
 
     comparison: Dict[str, Any] = {
@@ -89,13 +114,41 @@ def compare_fix(code: str, run_dynamic: bool = True) -> Dict[str, Any]:
         },
         "performance": None,
         "behavior_preserved": None,
+        "tests": None,
     }
+
+    if run_dynamic and fix.changed:
+        if cweval_task_stem and cweval_test_path:
+            from experiments.cweval_runner import run_cweval_tests
+
+            before = run_cweval_tests(fix.original_code, cweval_task_stem, cweval_test_path)
+            after = run_cweval_tests(fix.fixed_code, cweval_task_stem, cweval_test_path)
+            comparison["tests"] = {
+                "cweval_functional_before": before.functional,
+                "cweval_secure_before": before.secure,
+                "cweval_functional_after": after.functional,
+                "cweval_secure_after": after.secure,
+                "behavior_verified": (
+                    before.functional is not False
+                    and before.secure is not False
+                    and after.functional is not False
+                    and after.secure is not False
+                ),
+            }
+        elif tests:
+            passed_before = _tests_pass(fix.original_code, tests, energy_backend)
+            passed_after = _tests_pass(fix.fixed_code, tests, energy_backend)
+            comparison["tests"] = {
+                "tests_passed_before": passed_before,
+                "tests_passed_after": passed_after,
+                "behavior_verified": passed_before and passed_after,
+            }
 
     if not run_dynamic or not fix.changed:
         return comparison
 
-    before = profile_code(fix.original_code)
-    after = profile_code(fix.fixed_code)
+    before = measure_code(fix.original_code, energy_backend=energy_backend)
+    after = measure_code(fix.fixed_code, energy_backend=energy_backend)
 
     before_totals = _totals(before)
     after_totals = _totals(after)
