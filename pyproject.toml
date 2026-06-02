@@ -10,8 +10,25 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 [project.scripts]
-security = "security.cli.main:main"
+vibeguard = "security.cli.main:main"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+experiments = [
+    "pandas",
+    "pyarrow",
+    "matplotlib",
+    "scipy",
+    "codecarbon",
+    "scalene",
+    "bandit",
+    "semgrep",
+    "ruff",
+    "pylint",
+    "radon",
+]
+providers = ["openai", "anthropic"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["security*"]
+include = ["security*", "sandbox*", "orchestrator*", "fixers*", "corpus*", "experiments*"]
