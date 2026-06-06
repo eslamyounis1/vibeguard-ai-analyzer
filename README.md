@@ -237,6 +237,12 @@ test suite via the orchestrator's `compare_fix(..., tests=...)`, which reports
 | VG011 | TLS Verification Disabled | HIGH |
 | VG012 | Debug Mode Enabled | MEDIUM |
 | VG013 | Dynamic SQL Query Construction | HIGH |
+| VG014 | Path Traversal (dynamic file paths) | HIGH |
+| VG015 | Server-Side Request Forgery (SSRF) | HIGH |
+| VG016 | Unsafe HTML / XSS Output | HIGH |
+| VG017 | XPath Injection | HIGH |
+| VG018 | Open Redirect | MEDIUM |
+| VG019 | Unvalidated User Input to Sensitive Sink | MEDIUM |
 
 The security analyzer now covers unsafe dynamic execution, secrets, weak cryptography, shell execution, unsafe deserialization, TLS bypasses, debug server configuration, and SQL query construction risks.
 
@@ -426,6 +432,7 @@ uvicorn orchestrator.api:app --reload --port 8002
 - `POST /fix` — safe auto-fixed code + applied fixes
 - `POST /analyze-profile` — static analysis + dynamic profiling with performance corroboration
 - `POST /compare` — auto-fix with before/after security, performance, and energy metrics
+- `POST /chat` — OWASP/VibeGuard-aware secure Python code generation (requires `pip install -e ".[providers]"` and `OPENAI_API_KEY` or Ollama)
 
 Sandbox profiler (port 8001):
 
@@ -442,13 +449,18 @@ npm install
 npm run compile
 ```
 
-Open `vscode-extension/` in VS Code, press **F5** to launch an Extension Development Host, then open a Python file and run:
+Open `vscode-extension/` in VS Code, press **F5** to launch an Extension Development Host, then:
 
-- **VibeGuard: Analyze File (Security + Sandbox)** — static scan + sandbox profile
+- Click the **VibeGuard shield icon** in the left activity bar → **Secure Code Chat** sidebar
+- Or click **VibeGuard Chat** in the status bar (bottom-right)
+- Or **Cmd+Shift+P** → **VibeGuard: Open Secure Code Chat**
+
+Other commands:
 - **VibeGuard: Security Scan Only** — static analysis only
 - **VibeGuard: Profile in Sandbox** — runtime profile only
 - **VibeGuard: Analyze Selection** — analyze the highlighted region
-- **VibeGuard: Check API Health** — verify both APIs are reachable
+- **VibeGuard: Open Secure Code Chat** — OWASP-aware code generation via orchestrator
+- **VibeGuard: Check API Health** — verify security, sandbox, and orchestrator APIs
 
 Findings appear in the **Problems** panel; full reports appear in the **VibeGuard** output channel.
 
@@ -466,18 +478,18 @@ npm install
 npm run package
 ```
 
-This creates `vscode-extension/vibeguard-analyzer-0.1.0.vsix`.
+This creates `vscode-extension/vibeguard-analyzer-0.2.0.vsix`.
 
 **2. Install in VS Code**
 
 - Open **Extensions** (`Cmd+Shift+X`)
 - Click **⋯** (top of Extensions sidebar) → **Install from VSIX…**
-- Select `vibeguard-analyzer-0.1.0.vsix`
+- Select `vibeguard-analyzer-0.2.0.vsix`
 
 Or from a terminal:
 
 ```bash
-code --install-extension vscode-extension/vibeguard-analyzer-0.1.0.vsix
+code --install-extension vscode-extension/vibeguard-analyzer-0.2.0.vsix
 ```
 
 **3. Install in Cursor**
@@ -485,7 +497,7 @@ code --install-extension vscode-extension/vibeguard-analyzer-0.1.0.vsix
 Same UI: **Extensions → ⋯ → Install from VSIX…**, or:
 
 ```bash
-cursor --install-extension vscode-extension/vibeguard-analyzer-0.1.0.vsix
+cursor --install-extension vscode-extension/vibeguard-analyzer-0.2.0.vsix
 ```
 
 **4. Reload the window** when prompted (`Developer: Reload Window`).

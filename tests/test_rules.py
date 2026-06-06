@@ -12,6 +12,12 @@ from security.rules.security.vg010_yaml_load import UnsafeYamlLoadRule
 from security.rules.security.vg011_tls_verify import DisabledTlsVerificationRule
 from security.rules.security.vg012_debug_mode import DebugModeRule
 from security.rules.security.vg013_sql_injection import SqlInjectionRule
+from security.rules.security.vg014_path_traversal import PathTraversalRule
+from security.rules.security.vg015_ssrf import SsrfRule
+from security.rules.security.vg016_xss import UnsafeHtmlOutputRule
+from security.rules.security.vg017_xpath_injection import XPathInjectionRule
+from security.rules.security.vg018_open_redirect import OpenRedirectRule
+from security.rules.security.vg019_unvalidated_input import UnvalidatedInputRule
 
 
 def _parse(code: str):
@@ -274,3 +280,95 @@ class TestVG013SqlInjection:
         code = "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
         tree, lines = _parse(code)
         assert SqlInjectionRule().check(tree, "test.py", lines) == []
+
+
+class TestVG014PathTraversal:
+    def test_detects_dynamic_open(self):
+        code = "open(user_path)"
+        tree, lines = _parse(code)
+        findings = PathTraversalRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "path_traversal"
+
+    def test_detects_f_string_open(self):
+        code = 'open(f"/tmp/{name}")'
+        tree, lines = _parse(code)
+        assert len(PathTraversalRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_constant_path(self):
+        code = 'open("/etc/hosts")'
+        tree, lines = _parse(code)
+        assert PathTraversalRule().check(tree, "test.py", lines) == []
+
+
+class TestVG015Ssrf:
+    def test_detects_requests_get_variable(self):
+        code = "import requests\nrequests.get(target_url)"
+        tree, lines = _parse(code)
+        findings = SsrfRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "ssrf_unvalidated_url"
+
+    def test_no_flag_constant_url(self):
+        code = "import requests\nrequests.get('https://example.com')"
+        tree, lines = _parse(code)
+        assert SsrfRule().check(tree, "test.py", lines) == []
+
+
+class TestVG016Xss:
+    def test_detects_markup(self):
+        code = "from markupsafe import Markup\nreturn Markup(user_html)"
+        tree, lines = _parse(code)
+        findings = UnsafeHtmlOutputRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "unsafe_html_output"
+
+    def test_detects_render_template_string(self):
+        code = "from flask import render_template_string\nreturn render_template_string(template)"
+        tree, lines = _parse(code)
+        assert len(UnsafeHtmlOutputRule().check(tree, "test.py", lines)) == 1
+
+
+class TestVG017XPath:
+    def test_detects_dynamic_xpath(self):
+        code = "tree.xpath(f\"//user[@name='{username}']\")"
+        tree, lines = _parse(code)
+        findings = XPathInjectionRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "xpath_injection"
+
+
+class TestVG018OpenRedirect:
+    def test_detects_redirect_variable(self):
+        code = "from flask import redirect\nreturn redirect(next_url)"
+        tree, lines = _parse(code)
+        findings = OpenRedirectRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "open_redirect"
+
+
+class TestVG019UnvalidatedInput:
+    def test_detects_request_args_to_open(self):
+        code = "from flask import request\nopen(request.args.get('path'))"
+        tree, lines = _parse(code)
+        findings = UnvalidatedInputRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "unvalidated_user_input"
+        assert findings[0].owasp is None  # enriched at analyzer level
+
+    def test_enriched_owasp_metadata(self):
+        from security.rules.security.metadata import enrich_security_finding
+        from security.models.finding import Finding, Severity
+
+        finding = enrich_security_finding(
+            Finding(
+                rule_id="ssrf_unvalidated_url",
+                title="t",
+                message="m",
+                severity=Severity.HIGH,
+                file="f",
+                line=1,
+            )
+        )
+        assert finding.owasp == "A10:2021 Server-Side Request Forgery"
+        assert finding.cwe == "CWE-918"

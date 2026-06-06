@@ -7,16 +7,33 @@ comparisons) live here.
 """
 
 import json
-from typing import Any
+from typing import Any, List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from fixers.engine import fix_source
+from orchestrator.chat import generate_secure_code
 from orchestrator.pipeline import analyze_and_profile, compare_fix
 
 MAX_CODE_SIZE = 50_000
 
 app = FastAPI(title="VibeGuard Orchestrator", version="0.1.0")
+
+
+class ChatMessage(BaseModel):
+    role: str = "user"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+    code: Optional[str] = None
+    provider: str = "openai"
+    model: Optional[str] = None
+    refine: bool = True
+    max_iterations: int = Field(default=3, ge=1, le=5)
+    temperature: float = Field(default=0.2, ge=0.0, le=1.0)
 
 
 @app.get("/health")
@@ -90,3 +107,25 @@ async def compare_fix_code(
     content_type = request.headers.get("content-type", "").lower()
     code = _extract_code(body=body, content_type=content_type)
     return {"ok": True, **compare_fix(code)}
+
+
+@app.post("/chat")
+async def chat_generate(body: ChatRequest) -> Any:
+    """Generate Python code from chat messages with OWASP/VibeGuard rule awareness."""
+    if body.code and len(body.code) > MAX_CODE_SIZE:
+        raise HTTPException(status_code=422, detail=f"Code length exceeds {MAX_CODE_SIZE} characters.")
+    try:
+        result = generate_secure_code(
+            [m.model_dump() for m in body.messages],
+            code_context=body.code,
+            provider=body.provider,
+            model=body.model,
+            refine=body.refine,
+            max_iterations=body.max_iterations,
+            temperature=body.temperature,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, **result}

@@ -97,6 +97,38 @@ def vg013_sql_query_construction(cursor, username, user_id):
     cursor.execute("UPDATE users SET active = 0 WHERE id = " + str(user_id))
 
 
+def vg014_path_traversal(user_file):
+    open(user_file)
+    open(f"/data/{user_file}")
+
+
+def vg015_ssrf(target):
+    requests.get(target)
+    requests.post(f"http://internal/{target}")
+
+
+def vg016_xss(user_html):
+    from markupsafe import Markup
+
+    return Markup(user_html)
+
+
+def vg017_xpath(tree, username):
+    return tree.xpath(f"//account[@owner='{username}']")
+
+
+def vg018_open_redirect(next_url):
+    from flask import redirect
+
+    return redirect(next_url)
+
+
+def vg019_unvalidated_input():
+    from flask import request
+
+    open(request.args.get("filename"))
+
+
 def ignored_example(cursor, query):
     # vibeguard: ignore sql_query_construction
     cursor.execute(query)
