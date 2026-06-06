@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ProfileResponse, VibeGuardConfig } from "./types";
+import type { AnalyzeResponse, ChatMessage, ChatResponse, ProfileResponse, VibeGuardConfig } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -96,4 +96,57 @@ export function profileCode(config: VibeGuardConfig, code: string): Promise<Prof
   return postJson<ProfileResponse>(`${config.sandboxApiUrl}/profile`, code, {
     timeoutMs: config.requestTimeoutMs,
   });
+}
+
+export async function chatGenerate(
+  config: VibeGuardConfig,
+  messages: ChatMessage[],
+  code?: string,
+): Promise<ChatResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.requestTimeoutMs);
+
+  try {
+    const response = await fetch(`${config.orchestratorApiUrl}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages,
+        code: code ?? null,
+        provider: config.chatProvider,
+        model: config.chatModel || null,
+        refine: config.chatRefine,
+        max_iterations: config.chatMaxIterations,
+      }),
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    let payload: unknown;
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch {
+      throw new ApiError(`Invalid JSON from chat API: ${text.slice(0, 200)}`, response.status);
+    }
+
+    if (!response.ok) {
+      const detail =
+        typeof payload === "object" && payload !== null && "detail" in payload
+          ? String((payload as { detail: unknown }).detail)
+          : `Chat request failed (${response.status})`;
+      throw new ApiError(detail, response.status, payload);
+    }
+
+    return payload as ChatResponse;
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ApiError(`Chat request timed out after ${config.requestTimeoutMs}ms`);
+    }
+    throw new ApiError(err instanceof Error ? err.message : String(err));
+  } finally {
+    clearTimeout(timer);
+  }
 }

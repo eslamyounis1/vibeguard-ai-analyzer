@@ -62,7 +62,36 @@ export interface ProfileResponse {
 export interface VibeGuardConfig {
   securityApiUrl: string;
   sandboxApiUrl: string;
+  orchestratorApiUrl: string;
   minSeverity: Severity;
   runSandboxOnAnalyze: boolean;
   requestTimeoutMs: number;
+  chatProvider: string;
+  chatModel: string;
+  chatRefine: boolean;
+  chatMaxIterations: number;
+}
+
+export interface ChatMessage {
+  role: string;
+  content: string;
+}
+
+export interface ChatFinding {
+  rule_id: string;
+  line?: number | null;
+  message: string;
+  cwe?: string | null;
+  owasp?: string | null;
+  severity?: string;
+}
+
+export interface ChatResponse {
+  ok: boolean;
+  code: string;
+  clean: boolean;
+  findings: ChatFinding[];
+  iterations: Array<{ attempt: number; findings_count: number; findings: ChatFinding[] }>;
+  provider?: string;
+  model?: string;
 }

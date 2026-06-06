@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { analyzeCode, ApiError, checkHealth, profileCode } from "./client";
+import { ChatPanel } from "./chatPanel";
+import { ChatViewProvider } from "./chatViewProvider";
 import { getConfig } from "./config";
 import { VibeGuardDiagnostics } from "./diagnostics";
 import { formatAnalyzeSummary, formatProfileReport } from "./report";
@@ -35,6 +37,13 @@ function getCodeFromEditor(editor: vscode.TextEditor, selectionOnly: boolean): s
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL);
   const diagnostics = new VibeGuardDiagnostics();
+  const chatViewProvider = new ChatViewProvider(context.extensionUri);
+
+  const chatStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
+  chatStatusBar.text = "$(comment-discussion) VibeGuard Chat";
+  chatStatusBar.command = "vibeguard.openChat";
+  chatStatusBar.tooltip = "Open VibeGuard Secure Code Chat (sidebar)";
+  chatStatusBar.show();
 
   async function runAnalyze(options: { securityOnly: boolean; selectionOnly: boolean }) {
     const editor = getActivePythonEditor();
@@ -127,9 +136,16 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
 
+  async function openChat(): Promise<void> {
+    chatViewProvider.focus();
+    await vscode.commands.executeCommand("workbench.view.extension.vibeguard");
+  }
+
   context.subscriptions.push(
     output,
     diagnostics,
+    chatStatusBar,
+    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider),
     vscode.commands.registerCommand("vibeguard.analyze", () =>
       runAnalyze({ securityOnly: false, selectionOnly: false }),
     ),
@@ -162,24 +178,32 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("vibeguard.checkHealth", async () => {
       const config = getConfig();
-      const [securityOk, sandboxOk] = await Promise.all([
+      const [securityOk, sandboxOk, orchestratorOk] = await Promise.all([
         checkHealth(config.securityApiUrl, config.requestTimeoutMs),
         checkHealth(config.sandboxApiUrl, config.requestTimeoutMs),
+        checkHealth(config.orchestratorApiUrl, config.requestTimeoutMs),
       ]);
 
       const lines = [
         `Security API (${config.securityApiUrl}): ${securityOk ? "ok" : "unreachable"}`,
         `Sandbox API (${config.sandboxApiUrl}): ${sandboxOk ? "ok" : "unreachable"}`,
+        `Orchestrator API (${config.orchestratorApiUrl}): ${orchestratorOk ? "ok" : "unreachable"}`,
       ];
       output.clear();
       output.appendLine(lines.join("\n"));
       output.show(true);
 
-      if (securityOk && sandboxOk) {
-        vscode.window.showInformationMessage("VibeGuard: both APIs are healthy.");
+      if (securityOk && sandboxOk && orchestratorOk) {
+        vscode.window.showInformationMessage("VibeGuard: all APIs are healthy.");
       } else {
         vscode.window.showWarningMessage("VibeGuard: one or more APIs are unreachable.");
       }
+    }),
+    vscode.commands.registerCommand("vibeguard.openChat", () => {
+      void openChat();
+    }),
+    vscode.commands.registerCommand("vibeguard.openChatPanel", () => {
+      ChatPanel.createOrShow(context);
     }),
   );
 }

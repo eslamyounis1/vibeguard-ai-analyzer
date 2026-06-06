@@ -16,6 +16,12 @@ from security.rules.security.vg010_yaml_load import UnsafeYamlLoadRule
 from security.rules.security.vg011_tls_verify import DisabledTlsVerificationRule
 from security.rules.security.vg012_debug_mode import DebugModeRule
 from security.rules.security.vg013_sql_injection import SqlInjectionRule
+from security.rules.security.vg014_path_traversal import PathTraversalRule
+from security.rules.security.vg015_ssrf import SsrfRule
+from security.rules.security.vg016_xss import UnsafeHtmlOutputRule
+from security.rules.security.vg017_xpath_injection import XPathInjectionRule
+from security.rules.security.vg018_open_redirect import OpenRedirectRule
+from security.rules.security.vg019_unvalidated_input import UnvalidatedInputRule
 from security.rules.security.metadata import enrich_security_finding
 
 _DEFAULT_RULES: List[SecurityRule] = [
@@ -32,6 +38,12 @@ _DEFAULT_RULES: List[SecurityRule] = [
     DisabledTlsVerificationRule(),
     DebugModeRule(),
     SqlInjectionRule(),
+    PathTraversalRule(),
+    SsrfRule(),
+    UnsafeHtmlOutputRule(),
+    XPathInjectionRule(),
+    OpenRedirectRule(),
+    UnvalidatedInputRule(),
 ]
 
 
