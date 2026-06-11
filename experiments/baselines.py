@@ -30,7 +30,8 @@ _CWE_RE = re.compile(r"CWE[-_ ]?(\d+)", re.IGNORECASE)
 
 def _norm_cwe(text: str) -> Optional[str]:
     match = _CWE_RE.search(str(text))
-    return f"CWE-{match.group(1)}" if match else None
+    # Normalise to no-leading-zero form (CWE-022 → CWE-22) to match metadata storage.
+    return f"CWE-{int(match.group(1))}" if match else None
 
 
 def rule_to_cwe(rule_id: str) -> Optional[str]:

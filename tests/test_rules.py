@@ -1,6 +1,12 @@
 import ast
 import pytest
 
+from security.rules.security.vg020_weak_crypto_key import WeakCryptoKeyRule
+from security.rules.security.vg021_log_injection import LogInjectionRule
+from security.rules.security.vg022_http_header_injection import HttpHeaderInjectionRule
+from security.rules.security.vg023_weak_rng_seed import WeakRngSeedRule
+from security.rules.security.vg024_regex_dos import RegexDosRule
+from security.rules.security.vg025_url_validation_bypass import UrlValidationBypassRule
 from security.rules.security.vg001_eval import EvalUsageRule
 from security.rules.security.vg002_exec import ExecUsageRule
 from security.rules.security.vg003_hardcoded_secrets import HardcodedSecretsRule
@@ -241,6 +247,24 @@ class TestVG011TlsVerify:
         tree, lines = _parse(code)
         assert DisabledTlsVerificationRule().check(tree, "test.py", lines) == []
 
+    def test_detects_ssl_unverified_context(self):
+        code = "import ssl\nctx = ssl._create_unverified_context()"
+        tree, lines = _parse(code)
+        findings = DisabledTlsVerificationRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+
+    def test_detects_check_hostname_false(self):
+        code = "import ssl\nctx = ssl.create_default_context()\nctx.check_hostname = False"
+        tree, lines = _parse(code)
+        findings = DisabledTlsVerificationRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+
+    def test_detects_verify_mode_cert_none(self):
+        code = "import ssl\nctx = ssl.create_default_context()\nctx.verify_mode = ssl.CERT_NONE"
+        tree, lines = _parse(code)
+        findings = DisabledTlsVerificationRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+
 
 class TestVG012DebugMode:
     def test_detects_app_run_debug_true(self):
@@ -328,6 +352,16 @@ class TestVG016Xss:
         tree, lines = _parse(code)
         assert len(UnsafeHtmlOutputRule().check(tree, "test.py", lines)) == 1
 
+    def test_detects_make_response_concat(self):
+        code = "from flask import make_response\nreturn make_response('<p>' + user_input + '</p>')"
+        tree, lines = _parse(code)
+        assert len(UnsafeHtmlOutputRule().check(tree, "test.py", lines)) == 1
+
+    def test_detects_response_fstring(self):
+        code = "from flask import Response\nreturn Response(f'<b>{name}</b>')"
+        tree, lines = _parse(code)
+        assert len(UnsafeHtmlOutputRule().check(tree, "test.py", lines)) == 1
+
 
 class TestVG017XPath:
     def test_detects_dynamic_xpath(self):
@@ -372,3 +406,254 @@ class TestVG019UnvalidatedInput:
         )
         assert finding.owasp == "A10:2021 Server-Side Request Forgery"
         assert finding.cwe == "CWE-918"
+
+
+class TestVG020WeakCryptoKey:
+    def test_detects_rsa_small_key(self):
+        code = "from Crypto.PublicKey import RSA\nkey = RSA.generate(1024)"
+        tree, lines = _parse(code)
+        findings = WeakCryptoKeyRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "weak_crypto_key"
+
+    def test_detects_des_usage(self):
+        code = "from Crypto.Cipher import DES\ncipher = DES.new(key, DES.MODE_ECB)"
+        tree, lines = _parse(code)
+        findings = WeakCryptoKeyRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+
+    def test_flags_rsa_2048(self):
+        # 2048-bit is now below the 3072-bit threshold
+        code = "from Crypto.PublicKey import RSA\nkey = RSA.generate(2048)"
+        tree, lines = _parse(code)
+        findings = WeakCryptoKeyRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert "3072" in findings[0].message
+
+    def test_no_flag_rsa_3072(self):
+        code = "from Crypto.PublicKey import RSA\nkey = RSA.generate(3072)"
+        tree, lines = _parse(code)
+        assert WeakCryptoKeyRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_rsa_4096(self):
+        code = "from Crypto.PublicKey import RSA\nkey = RSA.generate(4096)"
+        tree, lines = _parse(code)
+        assert WeakCryptoKeyRule().check(tree, "test.py", lines) == []
+
+    def test_detects_arc4(self):
+        code = "from Crypto.Cipher import ARC4\ncipher = ARC4.new(key)"
+        tree, lines = _parse(code)
+        assert len(WeakCryptoKeyRule().check(tree, "test.py", lines)) == 1
+
+
+class TestVG021LogInjection:
+    def test_detects_log_variable(self):
+        code = "import logging\nlogging.info(user_input)"
+        tree, lines = _parse(code)
+        findings = LogInjectionRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "log_injection"
+
+    def test_detects_fstring_log(self):
+        code = "import logging\nlogging.warning(f'User: {name}')"
+        tree, lines = _parse(code)
+        assert len(LogInjectionRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_constant_message(self):
+        code = "import logging\nlogging.info('Server started')"
+        tree, lines = _parse(code)
+        assert LogInjectionRule().check(tree, "test.py", lines) == []
+
+    def test_detects_logger_error(self):
+        code = "import logging\nlogger = logging.getLogger()\nlogger.error(err_msg)"
+        tree, lines = _parse(code)
+        assert len(LogInjectionRule().check(tree, "test.py", lines)) == 1
+
+
+class TestVG022HttpHeaderInjection:
+    def test_detects_response_header_assignment(self):
+        code = "response.headers['X-Custom'] = user_value"
+        tree, lines = _parse(code)
+        findings = HttpHeaderInjectionRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "http_header_injection"
+
+    def test_detects_headers_variable(self):
+        code = "response_headers['Location'] = request_url"
+        tree, lines = _parse(code)
+        assert len(HttpHeaderInjectionRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_constant_value(self):
+        code = "response.headers['Content-Type'] = 'application/json'"
+        tree, lines = _parse(code)
+        assert HttpHeaderInjectionRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_non_header_dict(self):
+        code = "data['key'] = user_value"
+        tree, lines = _parse(code)
+        assert HttpHeaderInjectionRule().check(tree, "test.py", lines) == []
+
+
+class TestVG023WeakRngSeed:
+    def test_detects_constant_seed(self):
+        code = "import random\nrandom.seed(42)"
+        tree, lines = _parse(code)
+        findings = WeakRngSeedRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "weak_rng_seed"
+
+    def test_detects_no_args(self):
+        code = "import random\nrandom.seed()"
+        tree, lines = _parse(code)
+        assert len(WeakRngSeedRule().check(tree, "test.py", lines)) == 1
+
+    def test_detects_time_based_seed(self):
+        code = "import random\nimport time\nrandom.seed(int(time.time()))"
+        tree, lines = _parse(code)
+        assert len(WeakRngSeedRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_os_urandom_seed(self):
+        code = "import random\nimport os\nrandom.seed(os.urandom(16))"
+        tree, lines = _parse(code)
+        assert WeakRngSeedRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_without_import_random(self):
+        code = "seed(42)"
+        tree, lines = _parse(code)
+        assert WeakRngSeedRule().check(tree, "test.py", lines) == []
+
+
+class TestVG024RegexDos:
+    def test_detects_dynamic_compile(self):
+        code = "import re\nre.compile(user_pattern)"
+        tree, lines = _parse(code)
+        findings = RegexDosRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "regex_dos"
+
+    def test_detects_dynamic_search(self):
+        code = "import re\nre.search(pattern, text)"
+        tree, lines = _parse(code)
+        assert len(RegexDosRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_literal_pattern(self):
+        code = "import re\nre.compile(r'^[a-z]+$')"
+        tree, lines = _parse(code)
+        assert RegexDosRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_without_import_re(self):
+        code = "re.compile(user_pattern)"
+        tree, lines = _parse(code)
+        assert RegexDosRule().check(tree, "test.py", lines) == []
+
+
+class TestVG025UrlValidationBypass:
+    def test_detects_netloc_endswith_variable(self):
+        code = (
+            "from urllib.parse import urlparse\n"
+            "parsed = urlparse(target)\n"
+            "if parsed.netloc.endswith(domain): return target"
+        )
+        tree, lines = _parse(code)
+        findings = UrlValidationBypassRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "url_validation_bypass"
+
+    def test_detects_hostname_endswith_variable(self):
+        code = (
+            "from urllib.parse import urlparse\n"
+            "parsed = urlparse(url)\n"
+            "if parsed.hostname.endswith(allowed_domain): pass"
+        )
+        tree, lines = _parse(code)
+        assert len(UrlValidationBypassRule().check(tree, "test.py", lines)) == 1
+
+    def test_detects_host_endswith_variable(self):
+        code = "if parsed.host.endswith(allowed): redirect(url)"
+        tree, lines = _parse(code)
+        assert len(UrlValidationBypassRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_static_extension_check(self):
+        # Static string arg — not a domain validation, just a file extension check
+        code = "if url.endswith('.png'): pass"
+        tree, lines = _parse(code)
+        assert UrlValidationBypassRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_netloc_equality(self):
+        # Equality check is safe — not flagged by this rule
+        code = "if parsed.netloc == allowed_domain: pass"
+        tree, lines = _parse(code)
+        assert UrlValidationBypassRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_non_url_endswith(self):
+        # endswith on non-netloc attribute should not be flagged
+        code = "if filename.endswith(ext): pass"
+        tree, lines = _parse(code)
+        assert UrlValidationBypassRule().check(tree, "test.py", lines) == []
+
+
+class TestVG016XssHtmlDocstring:
+    def test_detects_html_docstring_fstring_return(self):
+        code = (
+            'def render_greeting(username):\n'
+            '    """Returns HTML rendered in the browser."""\n'
+            '    return f"<p>Welcome, {username}!</p>"\n'
+        )
+        tree, lines = _parse(code)
+        findings = UnsafeHtmlOutputRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "unsafe_html_output"
+
+    def test_no_flag_non_html_docstring(self):
+        code = (
+            'def format_message(username):\n'
+            '    """Returns a plain text greeting."""\n'
+            '    return f"Welcome, {username}!"\n'
+        )
+        tree, lines = _parse(code)
+        assert UnsafeHtmlOutputRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_constant_fstring_in_html_func(self):
+        code = (
+            'def render_static():\n'
+            '    """Returns HTML content."""\n'
+            '    return f"<p>Hello, World!</p>"\n'
+        )
+        tree, lines = _parse(code)
+        assert UnsafeHtmlOutputRule().check(tree, "test.py", lines) == []
+
+
+class TestVG021LogBuilderFunction:
+    def test_detects_log_builder_function(self):
+        code = (
+            "def generate_receive_log(msg, ts):\n"
+            "    return f'[{ts}] Received: {msg}'\n"
+        )
+        tree, lines = _parse(code)
+        findings = LogInjectionRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "log_injection"
+
+    def test_detects_audit_log_function(self):
+        code = (
+            "def build_audit_entry(user, action):\n"
+            "    return f'USER={user} ACTION={action}'\n"
+        )
+        tree, lines = _parse(code)
+        assert len(LogInjectionRule().check(tree, "test.py", lines)) == 1
+
+    def test_no_flag_non_log_function(self):
+        code = (
+            "def format_greeting(name):\n"
+            "    return f'Hello, {name}!'\n"
+        )
+        tree, lines = _parse(code)
+        assert LogInjectionRule().check(tree, "test.py", lines) == []
+
+    def test_no_flag_log_function_with_constant_only(self):
+        code = (
+            "def get_log_prefix():\n"
+            "    return '[INFO] Server started'\n"
+        )
+        tree, lines = _parse(code)
+        assert LogInjectionRule().check(tree, "test.py", lines) == []
