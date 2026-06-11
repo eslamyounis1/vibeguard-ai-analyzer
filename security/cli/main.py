@@ -38,6 +38,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exclude code snippets from output.",
     )
     scan.add_argument(
+        "--dynamic-verify", action="store_true",
+        help="Run dynamic sandbox probes to confirm/dismiss findings (slower).",
+    )
+    scan.add_argument(
         "--fix", action="store_true",
         help="Apply safe automatic fixes to detected issues.",
     )
@@ -129,7 +133,8 @@ def main() -> None:
         sys.exit(_run_fix(target, args))
 
     min_severity = Severity[args.severity.upper()] if args.severity else None
-    scanner = Scanner(min_severity=min_severity, include_snippet=args.include_snippet)
+    dynamic_verify = getattr(args, "dynamic_verify", False)
+    scanner = Scanner(min_severity=min_severity, include_snippet=args.include_snippet, dynamic_verify=dynamic_verify)
     result = scanner.scan(target)
 
     writing_to_file = bool(args.output)

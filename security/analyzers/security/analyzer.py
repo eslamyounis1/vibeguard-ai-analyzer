@@ -22,6 +22,27 @@ from security.rules.security.vg016_xss import UnsafeHtmlOutputRule
 from security.rules.security.vg017_xpath_injection import XPathInjectionRule
 from security.rules.security.vg018_open_redirect import OpenRedirectRule
 from security.rules.security.vg019_unvalidated_input import UnvalidatedInputRule
+from security.rules.security.vg020_weak_crypto_key import WeakCryptoKeyRule
+from security.rules.security.vg021_log_injection import LogInjectionRule
+from security.rules.security.vg022_http_header_injection import HttpHeaderInjectionRule
+from security.rules.security.vg023_weak_rng_seed import WeakRngSeedRule
+from security.rules.security.vg024_redos import ReDoSRule
+from security.rules.security.vg025_url_validation_bypass import UrlValidationBypassRule
+from security.rules.security.vg026_xxe import XxeRule
+from security.rules.security.vg027_insecure_cookie import InsecureCookieRule
+from security.rules.security.vg028_csrf import CsrfRule
+from security.rules.security.vg029_insecure_tmpfile import InsecureTmpFileRule
+from security.rules.security.vg030_cleartext_credentials import CleartextCredentialsRule
+from security.rules.security.vg031_unnecessary_privileges import UnnecessaryPrivilegesRule
+from security.rules.security.vg032_none_dereference import NoneDereferenceRule
+from security.rules.security.vg033_unrestricted_upload import UnrestrictedUploadRule
+from security.rules.security.vg034_weak_password_storage import WeakPasswordStorageRule
+from security.rules.security.vg035_sensitive_data_log import SensitiveDataLogRule
+from security.rules.security.vg036_xml_injection import XmlInjectionRule
+from security.rules.security.vg037_improper_output_encoding import ImproperOutputEncodingRule
+from security.rules.security.vg038_jwt_no_verify import JwtNoVerifyRule
+from security.rules.security.vg039_insecure_file_permissions import InsecureFilePermissionsRule
+from security.rules.security.vg040_divide_by_zero import DivideByZeroRule
 from security.rules.security.metadata import enrich_security_finding
 
 _DEFAULT_RULES: List[SecurityRule] = [
@@ -44,6 +65,27 @@ _DEFAULT_RULES: List[SecurityRule] = [
     XPathInjectionRule(),
     OpenRedirectRule(),
     UnvalidatedInputRule(),
+    WeakCryptoKeyRule(),
+    LogInjectionRule(),
+    HttpHeaderInjectionRule(),
+    WeakRngSeedRule(),
+    ReDoSRule(),
+    UrlValidationBypassRule(),
+    XxeRule(),
+    InsecureCookieRule(),
+    CsrfRule(),
+    InsecureTmpFileRule(),
+    CleartextCredentialsRule(),
+    UnnecessaryPrivilegesRule(),
+    NoneDereferenceRule(),
+    UnrestrictedUploadRule(),
+    WeakPasswordStorageRule(),
+    SensitiveDataLogRule(),
+    XmlInjectionRule(),
+    ImproperOutputEncodingRule(),
+    JwtNoVerifyRule(),
+    InsecureFilePermissionsRule(),
+    DivideByZeroRule(),
 ]
 
 

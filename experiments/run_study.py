@@ -420,6 +420,15 @@ def main() -> None:
     rq4 = rq4_repair(samples, out_dir, args.energy_backend, repair_dynamic, ai_only=ai_only)
     rq5 = rq5_baselines(samples, out_dir, ai_only=ai_only, scope_cwes=scope_cwes)
 
+    # RQ6: secure@k / vulnerable@k metrics
+    rq6: list = []
+    if args.corpus:
+        try:
+            from experiments.rq6_secure_at_k import run_rq6
+            rq6 = run_rq6(args.corpus, out_dir)
+        except Exception as exc:
+            print(f"RQ6 skipped: {exc}")
+
     plotted = _maybe_plot(out_dir, rq1, rq4)
     env = environment_metadata()
     _write_methods(out_dir, env, len(samples), args.runs, available_tools(), scope_cwes)
@@ -433,6 +442,7 @@ def main() -> None:
         "rq3_energy_rows": len(rq3),
         "rq4_repaired": sum(1 for r in rq4 if r["changed"]),
         "rq5_baselines": rq5,
+        "rq6_secure_at_k": rq6,
         "plots_written": plotted,
         "environment": env,
     }
