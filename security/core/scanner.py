@@ -72,10 +72,10 @@ class Scanner:
             try:
                 probe_result = probe.probe(source, finding)
                 # Annotate finding with dynamic verification status
-                finding.dynamic_status = probe_result.status.value  # type: ignore[attr-defined]
-                finding.dynamic_evidence = probe_result.evidence  # type: ignore[attr-defined]
+                finding.dynamic_status = probe_result.status.value
+                finding.dynamic_evidence = probe_result.evidence
             except Exception:
-                finding.dynamic_status = "unknown"  # type: ignore[attr-defined]
+                finding.dynamic_status = "unknown"
 
     def _scan_source_str(self, code: str, file_path: str) -> Tuple[List[Finding], Optional[ParseError]]:
         try:

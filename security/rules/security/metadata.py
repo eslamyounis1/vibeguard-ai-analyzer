@@ -20,6 +20,13 @@ _METADATA_BY_RULE: dict[str, SecurityMetadata] = {
         owasp="A03:2021 Injection",
         impact="User-controlled code execution can compromise the host process.",
     ),
+    "exec_usage": SecurityMetadata(
+        confidence=Confidence.HIGH,
+        risk_score=95,
+        cwe="CWE-95",
+        owasp="A03:2021 Injection",
+        impact="User-controlled code execution can compromise the host process.",
+    ),
     "hardcoded_secret": SecurityMetadata(
         confidence=Confidence.MEDIUM,
         risk_score=85,

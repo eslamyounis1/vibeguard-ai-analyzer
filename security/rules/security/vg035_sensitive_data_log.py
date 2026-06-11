@@ -1,4 +1,5 @@
 import ast
+import re
 from typing import List
 
 from security.models.finding import Finding, Severity
@@ -50,7 +51,12 @@ class SensitiveDataLogRule(SecurityRule):
         all_args = list(node.args) + [kw.value for kw in node.keywords if kw.arg]
         for arg in all_args:
             for sub in ast.walk(arg):
-                if isinstance(sub, ast.Name):
-                    if any(s in sub.id.lower() for s in _SENSITIVE_NAMES):
-                        found.append(sub.id)
+                if isinstance(sub, ast.Name) and _matches_sensitive(sub.id):
+                    found.append(sub.id)
         return list(dict.fromkeys(found))  # dedupe preserving order
+
+
+def _matches_sensitive(varname: str) -> bool:
+    """Match sensitive names at word boundaries (split on _ or -)."""
+    parts = re.split(r"[_\-]", varname.lower())
+    return any(s in parts for s in _SENSITIVE_NAMES)

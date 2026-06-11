@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "pytest tests/ -v",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "ruff check .",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "format",
+      "type": "shell",
+      "command": "ruff format .",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "scan",
+      "type": "shell",
+      "command": "vibeguard scan ./security",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -53,6 +53,8 @@ class Finding:
     cwe: Optional[str] = None
     owasp: Optional[str] = None
     impact: Optional[str] = None
+    dynamic_status: Optional[str] = None    # "confirmed" | "dismissed" | "unknown"
+    dynamic_evidence: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -71,6 +73,8 @@ class Finding:
             "cwe": self.cwe,
             "owasp": self.owasp,
             "impact": self.impact,
+            "dynamic_status": self.dynamic_status,
+            "dynamic_evidence": self.dynamic_evidence,
         }
 
 
