@@ -139,6 +139,48 @@ _METADATA_BY_RULE: dict[str, SecurityMetadata] = {
         owasp="A04:2021 Insecure Design",
         impact="Missing input validation enables injection and logic bypass in downstream sinks.",
     ),
+    "weak_crypto_key": SecurityMetadata(
+        confidence=Confidence.HIGH,
+        risk_score=80,
+        cwe="CWE-326",
+        owasp="A02:2021 Cryptographic Failures",
+        impact="Small key sizes and broken ciphers make encrypted data feasible to decrypt by brute force.",
+    ),
+    "log_injection": SecurityMetadata(
+        confidence=Confidence.MEDIUM,
+        risk_score=55,
+        cwe="CWE-117",
+        owasp="A09:2021 Security Logging and Monitoring Failures",
+        impact="Injected newlines can forge log entries, confuse SIEM tools, and obscure attack traces.",
+    ),
+    "http_header_injection": SecurityMetadata(
+        confidence=Confidence.HIGH,
+        risk_score=75,
+        cwe="CWE-113",
+        owasp="A03:2021 Injection",
+        impact="CRLF injection in response headers enables HTTP response splitting and cookie injection.",
+    ),
+    "weak_rng_seed": SecurityMetadata(
+        confidence=Confidence.MEDIUM,
+        risk_score=65,
+        cwe="CWE-329",
+        owasp="A02:2021 Cryptographic Failures",
+        impact="A predictable seed lets attackers reproduce the random sequence and break dependent security controls.",
+    ),
+    "regex_dos": SecurityMetadata(
+        confidence=Confidence.MEDIUM,
+        risk_score=70,
+        cwe="CWE-400",
+        owasp="A04:2021 Insecure Design",
+        impact="Catastrophic backtracking on user-supplied patterns can hang the process and cause denial of service.",
+    ),
+    "url_validation_bypass": SecurityMetadata(
+        confidence=Confidence.HIGH,
+        risk_score=75,
+        cwe="CWE-20",
+        owasp="A01:2021 Broken Access Control",
+        impact="Suffix-based domain checks can be bypassed with crafted hostnames, enabling open redirects and SSRF.",
+    ),
 }
 
 

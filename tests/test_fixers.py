@@ -95,3 +95,128 @@ class TestEngineSafety:
         ids = fixable_rule_ids()
         assert {"weak_hash_algorithm", "unsafe_yaml_load",
                 "tls_verification_disabled", "assert_used_for_validation"} <= ids
+
+
+# ---------------------------------------------------------------------------
+# LLM fixer tests — all LLM calls are mocked so no API key is required
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch
+from fixers.llm_fixer import llm_fix_source, _build_prompt
+
+
+_INSECURE_YAML = "import yaml\ndata = yaml.load(user_input)\n"
+_SECURE_YAML   = "import yaml\ndata = yaml.safe_load(user_input)\n"
+
+_INSECURE_HASH = "import hashlib\nhashlib.md5(b'password').hexdigest()\n"
+_SECURE_HASH   = "import hashlib\nhashlib.sha256(b'password').hexdigest()\n"
+
+
+def _mock_llm(fixed_code: str):
+    """Return a context manager that makes _call_llm return a fenced response."""
+    return patch(
+        "fixers.llm_fixer._call_llm",
+        return_value=f"```python\n{fixed_code}\n```",
+    )
+
+
+class TestLlmFixerPrompt:
+    def test_prompt_contains_rule_id(self):
+        prompt = _build_prompt(_INSECURE_YAML, [])
+        # Empty findings list edge case
+        assert "```python" in prompt
+
+    def test_prompt_lists_all_findings(self):
+        from security.models.finding import Finding, Severity
+        findings = [
+            Finding(rule_id="unsafe_yaml_load", title="Unsafe YAML", message="yaml.load is unsafe",
+                    severity=Severity.HIGH, file="t.py", line=2,
+                    suggestion="Use yaml.safe_load"),
+            Finding(rule_id="weak_hash_algorithm", title="Weak Hash", message="md5 is weak",
+                    severity=Severity.MEDIUM, file="t.py", line=3),
+        ]
+        prompt = _build_prompt("code", findings)
+        assert "unsafe_yaml_load" in prompt
+        assert "weak_hash_algorithm" in prompt
+        assert "line 2" in prompt
+        assert "line 3" in prompt
+        assert "yaml.safe_load" in prompt   # suggestion included
+
+
+class TestLlmFixerHappyPath:
+    def test_yaml_fixed_by_llm(self):
+        with _mock_llm(_SECURE_YAML):
+            res = llm_fix_source(_INSECURE_YAML)
+        assert res.changed
+        assert res.safe
+        assert "yaml.safe_load" in res.fixed_code
+        assert res.findings_after < res.findings_before
+
+    def test_hash_fixed_by_llm(self):
+        with _mock_llm(_SECURE_HASH):
+            res = llm_fix_source(_INSECURE_HASH)
+        assert res.changed
+        assert res.safe
+        assert "sha256" in res.fixed_code
+
+    def test_applied_fixes_list_populated(self):
+        with _mock_llm(_SECURE_YAML):
+            res = llm_fix_source(_INSECURE_YAML)
+        assert len(res.applied) >= 1
+        assert any(a.rule_id == "unsafe_yaml_load" for a in res.applied)
+
+    def test_diff_available(self):
+        with _mock_llm(_SECURE_YAML):
+            res = llm_fix_source(_INSECURE_YAML)
+        diff = res.unified_diff("test.py")
+        assert "yaml.load" in diff
+        assert "yaml.safe_load" in diff
+
+
+class TestLlmFixerSafety:
+    def test_invalid_python_from_llm_reverts(self):
+        with _mock_llm("def broken(:\n"):
+            res = llm_fix_source(_INSECURE_YAML)
+        assert not res.changed
+        assert not res.safe
+        assert "unparseable" in res.note.lower()
+
+    def test_llm_introducing_new_findings_reverts(self):
+        # Original has ≤2 findings; bad fix adds eval + md5 + subprocess shell = 3+ new findings
+        bad_fix = (
+            "import yaml, hashlib, subprocess\n"
+            "data = yaml.safe_load(user_input)\n"
+            "hashlib.md5(b'x')\n"
+            "eval(data)\n"
+            "subprocess.run(cmd, shell=True)\n"
+        )
+        with _mock_llm(bad_fix):
+            res = llm_fix_source(_INSECURE_YAML)
+        assert not res.changed
+        assert not res.safe
+
+    def test_no_security_findings_is_noop(self):
+        # No security findings (no CWE-tagged rules fire on constant-only code)
+        clean_code = "import hashlib\nresult = hashlib.sha256(b'hello').hexdigest()\n"
+        with _mock_llm(clean_code):
+            res = llm_fix_source(clean_code)
+        assert not res.changed
+        assert res.safe
+        assert "No security findings" in res.note
+
+    def test_unparseable_source_is_safe_noop(self):
+        res = llm_fix_source("def broken(:\n")
+        assert not res.changed
+        assert not res.safe
+
+    def test_llm_api_error_reverts(self):
+        with patch("fixers.llm_fixer._call_llm", side_effect=RuntimeError("network error")):
+            res = llm_fix_source(_INSECURE_YAML)
+        assert not res.changed
+        assert not res.safe
+        assert "network error" in res.note
+
+    def test_fixed_code_is_valid_python(self):
+        with _mock_llm(_SECURE_YAML):
+            res = llm_fix_source(_INSECURE_YAML)
+        compile(res.fixed_code, "<fixed>", "exec")  # must not raise

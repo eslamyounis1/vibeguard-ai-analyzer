@@ -5,8 +5,9 @@ from security.models.finding import Finding, Severity
 from security.rules.security.ast_utils import first_arg, full_attr_name, is_non_constant, iter_calls
 from security.rules.security.base import SecurityRule
 
-_HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "head", "request"})
-_HTTP_MODULES = frozenset({"requests", "httpx", "aiohttp"})
+_HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "head", "request", "send", "fetch"})
+_HTTP_MODULES = frozenset({"requests", "httpx", "aiohttp", "urllib", "urllib2"})
+_SESSION_NAMES = frozenset({"session", "client", "http_client", "http", "conn", "s"})
 
 
 class SsrfRule(SecurityRule):
@@ -40,10 +41,18 @@ class SsrfRule(SecurityRule):
     def _is_http_client_call(self, node: ast.Call) -> bool:
         func = node.func
         if isinstance(func, ast.Attribute):
-            if func.attr == "urlopen" and full_attr_name(func).endswith("urlopen"):
+            if func.attr == "urlopen":
                 return True
-            if func.attr in _HTTP_METHODS and isinstance(func.value, ast.Name):
-                return func.value.id in _HTTP_MODULES
+            if func.attr in _HTTP_METHODS:
+                # requests.get(), httpx.post(), etc.
+                if isinstance(func.value, ast.Name) and func.value.id in _HTTP_MODULES:
+                    return True
+                # session.get(), client.post() — session-based HTTP clients
+                if isinstance(func.value, ast.Name) and func.value.id in _SESSION_NAMES:
+                    return True
+                # requests.Session().get() — chained call
+                if isinstance(func.value, ast.Call):
+                    return True
         if isinstance(func, ast.Name) and func.id == "urlopen":
             return True
         return False

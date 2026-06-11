@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "security"
+name = "vibeguard"
 version = "0.1.0"
-description = "Static security analyzer for Python code"
+description = "AI code quality, energy, and security analyzer"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 
@@ -31,4 +31,4 @@ providers = ["openai", "anthropic"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["security*", "sandbox*", "orchestrator*", "fixers*", "corpus*", "experiments*"]
+include = ["security*", "sandbox*", "orchestrator*", "fixers*", "corpus*", "experiments*", "benchmarks*"]

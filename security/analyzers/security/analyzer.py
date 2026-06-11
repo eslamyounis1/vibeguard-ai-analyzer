@@ -22,6 +22,12 @@ from security.rules.security.vg016_xss import UnsafeHtmlOutputRule
 from security.rules.security.vg017_xpath_injection import XPathInjectionRule
 from security.rules.security.vg018_open_redirect import OpenRedirectRule
 from security.rules.security.vg019_unvalidated_input import UnvalidatedInputRule
+from security.rules.security.vg020_weak_crypto_key import WeakCryptoKeyRule
+from security.rules.security.vg021_log_injection import LogInjectionRule
+from security.rules.security.vg022_http_header_injection import HttpHeaderInjectionRule
+from security.rules.security.vg023_weak_rng_seed import WeakRngSeedRule
+from security.rules.security.vg024_regex_dos import RegexDosRule
+from security.rules.security.vg025_url_validation_bypass import UrlValidationBypassRule
 from security.rules.security.metadata import enrich_security_finding
 
 _DEFAULT_RULES: List[SecurityRule] = [
@@ -44,6 +50,12 @@ _DEFAULT_RULES: List[SecurityRule] = [
     XPathInjectionRule(),
     OpenRedirectRule(),
     UnvalidatedInputRule(),
+    WeakCryptoKeyRule(),
+    LogInjectionRule(),
+    HttpHeaderInjectionRule(),
+    WeakRngSeedRule(),
+    RegexDosRule(),
+    UrlValidationBypassRule(),
 ]
 
 
