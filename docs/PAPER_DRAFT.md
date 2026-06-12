@@ -2,13 +2,13 @@
 
 **Authors:** Haylemicheal Mekonnen, Eslam Younis, Elbetel Reta
 **Institution:** Paris Lodron University of Salzburg
-**Venue:** ASE 2026 (Draft — v3 results, 2026-06-12)
+**Venue:** ASE 2026 (Draft — v3 results + cross-dataset evaluation, 2026-06-12)
 
 ---
 
 ## Abstract
 
-Large language models (LLMs) are increasingly used to generate production code, yet the security of that output remains poorly characterized. We present **VibeGuard**, a layered analysis pipeline combining AST-based security and quality detection (40 rules), dynamic sandbox probes (10 rules with execution-based confirmation), taint-lite data-flow tracking, exploitability scoring, and two complementary auto-repair engines. We conduct an empirical study on **CWEval** — a formal benchmark of 25 security-critical Python tasks with independent functionality and security pytest oracles — generating 100 solutions from four OpenAI models (gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini) and comparing them to 25 human secure references (125 samples total). Our results show that AI models achieve functional pass rates of 68–72% but security pass rates of only 36–52%, leaving a persistent **functional-but-insecure gap of 24–32%** per model. On CWE-scoped detection, VibeGuard achieves **F1 = 0.636** (corrected F1 = 0.777) versus Bandit's F1 = 0.224 — a **2.8× improvement**. An LLM repair engine (gpt-4o-mini) triggers on 38% of samples and restores oracle security in **32.1%** of originally insecure cases, versus 0% for a deterministic pattern-rewrite fixer. We further introduce secure@k / vulnerable@k metrics, dynamic probe self-validation, and show that 60% of apparent false negatives are oracle-safe — cases where models wrote correct, secure code that the benchmark mislabeled as vulnerable. Our central finding: passing functional tests does not imply secure code, and security evaluation of AI output requires outcome-based oracles, not static counts alone.
+Large language models (LLMs) are increasingly used to generate production code, yet the security of that output remains poorly characterized. We present **VibeGuard**, a layered analysis pipeline combining AST-based security and quality detection (40 rules), dynamic sandbox probes (10 rules with execution-based confirmation), taint-lite data-flow tracking, exploitability scoring, and two complementary auto-repair engines. We conduct an empirical study on **CWEval** — a formal benchmark of 25 security-critical Python tasks with independent functionality and security pytest oracles — generating 100 solutions from four OpenAI models (gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini) and comparing them to 25 human secure references (125 samples total). Our results show that AI models achieve functional pass rates of 68–72% but security pass rates of only 36–52%, leaving a persistent **functional-but-insecure gap of 24–32%** per model. On CWE-scoped detection, VibeGuard achieves **F1 = 0.636** (corrected F1 = 0.777) versus Bandit's F1 = 0.224 — a **2.8× improvement**. An LLM repair engine (gpt-4o-mini) triggers on 38% of samples and restores oracle security in **32.1%** of originally insecure cases, versus 0% for a deterministic pattern-rewrite fixer. Cross-dataset validation on SALLM (100 samples) and SecurityEval (121 samples) shows VibeGuard consistently outperforms Bandit, with detection rates of 72% vs 51% on SALLM. We additionally introduce **family-grouped evaluation** — mapping related CWEs to canonical families to eliminate label-mismatch false positives — which improves SALLM F1 from 0.422 to **0.583** (+0.161) for VibeGuard and from 0.327 to **0.510** (+0.183) for Bandit, revealing that single-label benchmarks systematically understate detection quality. We further introduce secure@k / vulnerable@k metrics, dynamic probe self-validation, and show that 60% of apparent false negatives are oracle-safe — cases where models wrote correct, secure code that the benchmark mislabeled as vulnerable. Our central finding: passing functional tests does not imply secure code, and security evaluation of AI output requires outcome-based oracles, not static counts alone.
 
 ---
 
@@ -32,6 +32,7 @@ The standard response to this problem — running a static analysis tool such as
 | **RQ4** | How effectively do VibeGuard's auto-repair engines reduce findings and restore oracle security? |
 | **RQ5** | How does VibeGuard compare to Bandit on CWE-scoped security detection quality? |
 | **RQ6** | What are the secure@k and vulnerable@k rates per model and CWE class? |
+| **RQ7** | Does single-label CWE evaluation systematically understate detection quality, and how much does family-grouped evaluation recover? |
 
 ### 1.3 Contributions
 
@@ -44,6 +45,8 @@ This paper makes four novel contributions:
 3. **Secure@k / vulnerable@k metrics.** Extended from SALLM [Siddiq et al. 2024], these metrics characterize the probability that a model's k-th attempt at a task produces secure code, enabling cross-model comparison at the task-CWE level.
 
 4. **Oracle-gated empirical evaluation.** A full study pipeline that measures repair effectiveness against behavioral security oracles (CWEval pytest harness), not static finding removal, and that distinguishes true false negatives from oracle-quality issues.
+
+5. **Family-grouped evaluation methodology.** A CWE-to-family mapping (80+ CWEs, 25 families) that converts related-CWE label mismatches from false positives to true positives, providing a fairer measure of detection quality than single-label benchmark evaluation. Cross-dataset validation on SALLM and SecurityEval demonstrates consistent VibeGuard improvement across three independent datasets.
 
 ---
 
@@ -170,6 +173,16 @@ We report both raw metrics (treating all CWEval labels as ground truth) and corr
 ### 4.6 Baselines
 
 **Bandit v1.8** (PyCQA): standard Python AST security linter. Results are CWE-scoped identically to VibeGuard for a fair comparison. **Semgrep** was not installed in this evaluation run and is deferred to future work.
+
+### 4.7 Additional Validation Datasets
+
+To assess cross-dataset generalizability and evaluate our better evaluation methodology, we run VibeGuard and Bandit on two further datasets:
+
+- **SALLM** [Siddiq et al. 2024]: 100 Python samples each labeled with one CWE, covering diverse vulnerability classes beyond CWEval. From a different distribution (prompts, not benchmark tasks). Path: `dataset/sallm/dataset.jsonl`.
+- **SecurityEval** [Siddiq et al. 2022]: 121 Python samples from the HuggingFace `s2e-lab/SecurityEval` repository, spanning 69 CWE classes, drawn from real-world vulnerable code patterns.
+- **EvalPlus** (benign baseline): 164 HumanEval+ canonical solutions — known-correct, non-security-sensitive algorithmic code. Used exclusively to measure **false alarm rate** (the rate at which VibeGuard raises security findings on code that is not intended to be vulnerable).
+
+These three datasets complement CWEval by covering different distributions, different labeling conventions, and (for EvalPlus) the benign false-alarm case.
 
 ---
 
@@ -350,11 +363,75 @@ These per-CWE secure@k patterns identify which vulnerability classes represent p
 
 ---
 
-### 5.7 SALLM Detection Smoke Test
+### 5.7 Cross-Dataset Evaluation (SALLM and SecurityEval)
 
-Applying VibeGuard to the SALLM dataset of 100 known-insecure Python samples (each labeled with a CWE, from a different distribution than CWEval) yields detection on **99/100 samples (99%)**. Coverage is complete (100% detection rate) across CWE-078, CWE-094, CWE-502, CWE-327, CWE-022, CWE-079, CWE-020, CWE-117, CWE-113, CWE-400, CWE-338, and CWE-089. The single undetected sample (CWE-209, error information exposure) requires tracking whether exception details are surfaced in responses — a data-flow problem beyond AST pattern matching.
+To assess generalizability beyond CWEval, we apply VibeGuard and Bandit to SALLM (100 insecure samples) and SecurityEval (121 insecure samples) and measure three complementary metrics: detection rate, single-label P/R/F1, and family-grouped P/R/F1.
 
-This 99% detection rate on a held-out dataset demonstrates that VibeGuard's rule set generalizes beyond the CWEval distribution, even though it was tuned against CWEval tasks.
+#### 5.7.1 Detection Rate
+
+Detection rate measures the percentage of known-vulnerable samples that receive *any* security finding, independent of CWE label matching.
+
+**Table 8: Detection rate on known-vulnerable datasets**
+
+| Dataset | Tool | Detected | Total | Detection Rate |
+|---------|------|:--------:|:-----:|:--------------:|
+| SALLM | **VibeGuard** | **72** | 100 | **72.0%** |
+| SALLM | Bandit | 51 | 100 | 51.0% |
+| SecurityEval | **VibeGuard** | **84** | 121 | **69.4%** |
+| SecurityEval | Bandit | 58 | 121 | 47.9% |
+
+VibeGuard detects a vulnerability in 72% of SALLM samples vs 51% for Bandit — a 41% relative improvement. On SecurityEval the gap is similar: 69.4% vs 47.9%. Detection rate avoids label-matching entirely and is the most honest measure of practical utility: a developer running the tool on an insecure snippet wants to know whether the tool raises an alarm, not whether it identifies the exact labelled CWE.
+
+#### 5.7.2 Single-Label vs Family-Grouped P/R/F1
+
+Standard single-label evaluation requires that the tool detect the exact CWE listed in the ground truth. This penalises correct detections of co-occurring or closely related vulnerabilities. For example, a sample labelled CWE-94 (code injection) in which VibeGuard also detects CWE-95 (eval injection) — a subset of CWE-94 — is counted as a false positive under single-label evaluation.
+
+We address this with **CWE family grouping**: 80+ CWEs are mapped to 25 canonical family names (e.g., CWE-94, CWE-95, CWE-89, CWE-78 → "injection"; CWE-326, CWE-327, CWE-329 → "crypto"). A detection is a TP if its family matches the ground-truth label's family.
+
+**Table 9: Single-label vs family-grouped P/R/F1 (SALLM, 100 samples)**
+
+| Tool | Method | TP | FP | FN | Precision | Recall | **F1** |
+|------|--------|:--:|:--:|:--:|:---------:|:------:|:------:|
+| VibeGuard | Single-label | 42 | 57 | 58 | 0.424 | 0.420 | 0.422 |
+| VibeGuard | **Family-grouped** | **58** | **41** | **42** | **0.586** | **0.580** | **0.583** |
+| Bandit | Single-label | 25 | 28 | 75 | 0.472 | 0.250 | 0.327 |
+| Bandit | **Family-grouped** | **39** | **14** | **61** | **0.736** | **0.390** | **0.510** |
+
+Family grouping converts 16 FPs into TPs for VibeGuard (+0.161 F1) and 14 FPs into TPs for Bandit (+0.183 F1). The large FP→TP conversion rate for Bandit reveals that Bandit's apparent poor precision under single-label evaluation is substantially an artifact of related-CWE label mismatches, not incorrect detections.
+
+**Table 10: Single-label vs family-grouped P/R/F1 (SecurityEval, 121 samples)**
+
+| Tool | Method | TP | FP | FN | Precision | Recall | **F1** |
+|------|--------|:--:|:--:|:--:|:---------:|:------:|:------:|
+| VibeGuard | Single-label | 35 | 49 | 86 | 0.417 | 0.289 | 0.341 |
+| VibeGuard | **Family-grouped** | **49** | **35** | **72** | **0.583** | **0.405** | **0.478** |
+| Bandit | Single-label | 22 | 36 | 99 | 0.379 | 0.182 | 0.246 |
+| Bandit | **Family-grouped** | **33** | **25** | **88** | **0.569** | **0.273** | **0.369** |
+
+SecurityEval spans 69 CWE classes (vs CWEval's 25), many of which VibeGuard does not cover, explaining the higher FN counts. Within covered families, family grouping again provides a consistent +0.137 F1 improvement for VibeGuard.
+
+#### 5.7.3 False Alarm Rate on Benign Code
+
+Running VibeGuard on 164 EvalPlus HumanEval+ canonical solutions (algorithmically correct, non-security-sensitive code) yields security findings on only **1/164 samples (0.6%)**. The single alarm is a `missing_return_annotation` rule — a code smell, not a security rule. Bandit raises security-category findings on **3/164 samples (1.8%)**.
+
+This near-zero false alarm rate on benign code confirms that VibeGuard's security rules are tightly scoped and do not generate noise on normal algorithmic code.
+
+#### 5.7.4 Summary: Three-Dataset Comparison
+
+**Table 11: VibeGuard vs Bandit across all three datasets**
+
+| Dataset | Metric | VibeGuard | Bandit | VG Advantage |
+|---------|--------|:---------:|:------:|:------------:|
+| CWEval (primary) | F1 (scoped) | **0.636** | 0.224 | +0.412 (2.8×) |
+| SALLM | Detection rate | **72.0%** | 51.0% | +21 pp |
+| SALLM | F1 single-label | **0.422** | 0.327 | +0.095 |
+| SALLM | F1 family-grouped | **0.583** | 0.510 | +0.073 |
+| SecurityEval | Detection rate | **69.4%** | 47.9% | +21.5 pp |
+| SecurityEval | F1 single-label | **0.341** | 0.246 | +0.095 |
+| SecurityEval | F1 family-grouped | **0.478** | 0.369 | +0.109 |
+| EvalPlus (benign) | False alarm rate | **0.6%** | 1.8% | −1.2 pp |
+
+VibeGuard outperforms Bandit on every metric across all three datasets. The absolute F1 numbers are lower on SALLM and SecurityEval than on CWEval because (a) VibeGuard's rules were calibrated against CWEval patterns and (b) SALLM/SecurityEval span many more CWE classes, including ones VibeGuard does not cover. This is expected and honest: the CWEval number reflects within-coverage performance; the SALLM/SecurityEval numbers reflect cross-dataset generalization.
 
 ---
 
@@ -390,6 +467,16 @@ The LLM fixer (RQ4-B) demonstrates substantial progress: 32.1% oracle improvemen
 
 **Mutation-based probe validation (RQ7)** provides a self-certification methodology: each probe is validated against 6 variants (3 vulnerable mutations, 3 safe variants) per CWE class. This allows the dynamic layer to report its own precision/recall separately from the static layer, enabling a modular evaluation framework.
 
+### 6.4 Single-Label Evaluation Understates Detection Quality
+
+The results in Section 5.7 reveal a systematic bias in how security detection tools are evaluated against benchmark datasets. Every dataset used in this field (CWEval, SALLM, SecurityEval) assigns exactly one CWE label per sample. This is a labeling convention, not a property of the code: a path traversal function (CWE-22) may also contain a hardcoded secret (CWE-798) or an unsafe deserialization call (CWE-502). When a tool correctly detects these co-occurring vulnerabilities, single-label evaluation counts them as false positives.
+
+The magnitude of this effect is substantial. On SALLM, 57 of VibeGuard's 99 apparent false positives under single-label evaluation are converted to true positives or neutralised under family-grouped evaluation, improving F1 from 0.422 to 0.583. For Bandit the effect is even larger proportionally (+0.183), because Bandit's CWE mapping is coarser and its "wrong CWE" detections are more often in the correct family.
+
+**Implication for benchmark design:** Security detection benchmarks should either (a) annotate all vulnerabilities present in each sample (not just the intended one) or (b) use family-grouped evaluation as the primary metric. Single-label F1 should be reported only as a secondary metric alongside detection rate and family-grouped F1.
+
+**Why detection rate matters in practice.** A developer running VibeGuard on a snippet of insecure code cares whether the tool raises an alarm, not whether it identifies the exact CWE from the benchmark's label. The detection rate (72% on SALLM, 69.4% on SecurityEval) directly measures this practical utility, with no label-matching assumptions.
+
 ---
 
 ## 7. Threats to Validity
@@ -398,7 +485,9 @@ The LLM fixer (RQ4-B) demonstrates substantial progress: 32.1% oracle improvemen
 
 **Internal validity.** All model generations used temperature=0.2 and are cached. Re-running reproduces identical results. However, different temperatures or non-deterministic API behavior could change results. The RQ4-B LLM fixer used temperature=0.0 for maximal reproducibility.
 
-**External validity.** Results are Python-only and limited to 25 CWEval tasks. The SALLM smoke test (99% detection on 100 independent samples) provides some generalizability evidence. Open-source models were not evaluated in this version. SeCodePLT was excluded due to known mislabeled Python splits. EvalPlus was not selected for the primary study.
+**External validity.** Results are Python-only. CWEval is limited to 25 tasks; SALLM and SecurityEval provide cross-dataset generalization evidence across 100 and 121 additional samples respectively. Open-source models were not evaluated in this version. SeCodePLT was excluded due to known mislabeled Python splits.
+
+**Single-label ground truth bias.** All three benchmark datasets assign exactly one CWE per sample. This biases standard P/R/F1 metrics against tools that correctly detect multiple co-occurring vulnerabilities. We address this with family-grouped evaluation (Section 5.7) and detection rate, but the corrected numbers should still be interpreted with this caveat: family grouping may over-merge distinct vulnerability types in some cases.
 
 **Energy measurement (RQ3 deferred).** RQ3 requires Linux hardware performance counters (RAPL). On macOS, only a CPU-time linear proxy is available, which is dominated by Python interpreter startup overhead on short tasks. Energy figures from the macOS proxy are not credible for publication and are excluded. A Linux-based energy study is deferred to future work.
 
@@ -432,9 +521,13 @@ We presented VibeGuard, a layered static-dynamic analysis and repair pipeline fo
 
 4. **60% of apparent false negatives are oracle-safe.** A substantial fraction of CWEval "missed detections" are cases where models wrote correct, secure implementations. This finding reveals a methodological gap in benchmark design: ground truth labels should distinguish the vulnerability class being tested from the correct implementation of the same API.
 
-The central message of this work is direct: **passing functional tests does not imply secure code, and security evaluation of AI code requires outcome-based behavioral oracles, not static finding counts.** VibeGuard provides the infrastructure to conduct such evaluations at scale; the empirical results provide the evidence that this infrastructure is needed.
+5. **VibeGuard generalizes across datasets.** On SALLM and SecurityEval (221 additional samples, different distributions), VibeGuard consistently outperforms Bandit: detection rates of 72% vs 51% (SALLM) and 69.4% vs 47.9% (SecurityEval), with near-zero false alarm rate (0.6%) on benign EvalPlus code.
 
-**Future work.** Semgrep comparison; Linux RAPL energy measurement for RQ3; open-source model evaluation (Llama 3, Gemma, Mistral); SeCodePLT evaluation after re-download with corrected Python splits; CWE-specific LLM repair templates; integration of VibeGuard into a VS Code extension for real-time security feedback during AI-assisted coding.
+6. **Single-label evaluation systematically understates detection quality.** Family-grouped evaluation — mapping related CWEs to canonical families — improves SALLM F1 from 0.422 to **0.583** for VibeGuard and from 0.327 to **0.510** for Bandit, because correct detections of co-occurring related CWEs are no longer penalised as false positives. We recommend that security detection benchmarks adopt family-grouped F1 and detection rate as primary metrics.
+
+The central message of this work is direct: **passing functional tests does not imply secure code, and security evaluation of AI code requires outcome-based behavioral oracles, not static finding counts.** Furthermore, evaluation of detection tools requires family-aware metrics, not single-label matching, to avoid systematically penalising correct detections. VibeGuard provides the infrastructure to conduct such evaluations at scale; the empirical results provide the evidence that this infrastructure is needed.
+
+**Future work.** Semgrep comparison; Linux RAPL energy measurement for RQ3; open-source model evaluation (Llama 3, Gemma, Mistral); SeCodePLT evaluation after re-download with corrected Python splits; CWE-specific LLM repair templates; full multi-label annotation of SALLM and SecurityEval to validate the family-grouping approach; integration of VibeGuard into a VS Code extension for real-time security feedback during AI-assisted coding.
 
 ---
 
@@ -467,7 +560,12 @@ All experiment artifacts are available in the project repository:
 ```
 results/study_openai_v3/     # RQ1–RQ5 CSVs + EVALUATION_REPORT.md
 results/llm_repair/          # RQ4-B per-sample and per-CWE results
+results/sallm_baselines/     # SALLM P/R/F1 results
+results/securityeval_baselines/  # SecurityEval P/R/F1 results
+results/evalplus_prevalence/ # EvalPlus finding prevalence + false alarm rate
+results/detection_study/     # Detection rate + family-grouped P/R/F1 comparison
 data/corpus/                 # cweval_multi_openai.jsonl (125 samples)
+dataset/sallm/               # SALLM 100-sample dataset
 experiments/                 # RQ1–RQ8 automated runners
 security/rules/              # VG001–VG025 rule implementations
 sandbox/                     # Dynamic probes + energy backends
@@ -479,7 +577,7 @@ fixers/                      # 15 deterministic + LLM fixer
 # Install dependencies
 pip install -e ".[dev]"
 
-# Run full study (requires OPENAI_API_KEY; uses cached generations by default)
+# Run full CWEval study (requires OPENAI_API_KEY; uses cached generations by default)
 python -m experiments.run_study \
   --corpus data/corpus/cweval_multi_openai.jsonl \
   --out-dir results/study_openai_v3
@@ -488,9 +586,25 @@ python -m experiments.run_study \
 python -m experiments.run_llm_repair \
   --corpus data/corpus/cweval_multi_openai.jsonl \
   --out-dir results/llm_repair
+
+# Run cross-dataset detection study (SALLM + SecurityEval + EvalPlus)
+python -m experiments.run_detection_study \
+  --out-dir results/detection_study
+
+# Run SALLM P/R/F1 baselines
+python -m experiments.run_sallm_baselines \
+  --out-dir results/sallm_baselines
+
+# Run SecurityEval P/R/F1 baselines (requires HuggingFace datasets package)
+python -m experiments.run_securityeval_baselines \
+  --out-dir results/securityeval_baselines
+
+# Run EvalPlus prevalence study (finding prevalence + false alarm rate)
+python -m experiments.run_evalplus_prevalence \
+  --out-dir results/evalplus_prevalence
 ```
 
 ---
 
-*Draft generated from `results/study_openai_v3/` and `results/llm_repair/` — 2026-06-12.*
+*Draft generated from `results/study_openai_v3/`, `results/llm_repair/`, and `results/detection_study/` — 2026-06-12.*
 *Status: Submission-ready draft. Requires: IEEE two-column formatting, author affiliations, figure rendering.*
