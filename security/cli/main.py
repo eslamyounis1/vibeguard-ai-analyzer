@@ -153,6 +153,11 @@ def main() -> None:
     else:
         print(output)
 
+    if not args.quiet and args.format != "json":
+        score = result.exploitability_score
+        label = "LOW" if score < 0.2 else "MEDIUM" if score < 0.5 else "HIGH"
+        print(f"Exploitability score: {score:.4f} ({label})")
+
     sys.exit(1 if result.findings else 0)
 
 

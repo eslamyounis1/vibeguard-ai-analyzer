@@ -40,6 +40,8 @@ class Scanner:
                     finding.snippet = None
                 result.findings.append(finding)
 
+        from security.models.scoring import compute_risk_score
+        result.exploitability_score = compute_risk_score(result.findings)
         return result
 
     def scan_source(self, code: str, filename: str = "<code>") -> ScanResult:
@@ -57,6 +59,8 @@ class Scanner:
                 result.findings.append(finding)
         if self.dynamic_verify:
             self._run_dynamic_verification(result, code)
+        from security.models.scoring import compute_risk_score
+        result.exploitability_score = compute_risk_score(result.findings)
         return result
 
     def _run_dynamic_verification(self, result: ScanResult, source: str) -> None:

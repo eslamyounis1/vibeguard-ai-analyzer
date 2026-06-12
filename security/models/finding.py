@@ -92,6 +92,7 @@ class ScanResult:
     scanned_files: int = 0
     findings: List[Finding] = field(default_factory=list)
     parse_errors: List[ParseError] = field(default_factory=list)
+    exploitability_score: float = 0.0  # runtime-confirmed exploitability in [0, 1]
 
     @property
     def ok(self) -> bool:
@@ -143,4 +144,5 @@ class ScanResult:
             "findings": [f.to_dict() for f in self.findings],
             "parse_errors": [e.to_dict() for e in self.parse_errors],
             "summary": self.summary(),
+            "exploitability_score": self.exploitability_score,
         }

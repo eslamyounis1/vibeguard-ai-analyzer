@@ -274,6 +274,41 @@ def rq5_baselines(
     return aggregate
 
 
+def rq8_energy_delta(rq4_rows: List[dict], out_dir: Path) -> List[dict]:
+    """RQ8 — Differential energy per fix type (W5).
+
+    Aggregates delta_energy_joules from RQ4 compare_fix() results by CWE and
+    by fixer_id. Answers: does remediating security bugs cost or save CPU energy?
+
+    Paper claim: "We answer: does remediating security bugs cost or save CPU
+    energy? Prior work ignores this dimension."
+    """
+    by_cwe: Dict[str, List[float]] = defaultdict(list)
+    by_changed: Dict[bool, List[float]] = defaultdict(list)
+
+    for row in rq4_rows:
+        delta = row.get("energy_pct_change")
+        if delta is None:
+            continue
+        cwe = row.get("cwe") or "unknown"
+        by_cwe[cwe].append(float(delta))
+        by_changed[bool(row.get("changed"))].append(float(delta))
+
+    rows = []
+    for cwe, deltas in sorted(by_cwe.items()):
+        n = len(deltas)
+        mean_delta = sum(deltas) / n
+        rows.append({
+            "cwe": cwe,
+            "n_samples": n,
+            "mean_energy_pct_change": round(mean_delta, 3),
+            "direction": "saves" if mean_delta < -1 else "costs" if mean_delta > 1 else "neutral",
+        })
+
+    _write_csv(out_dir / "rq8_energy_delta.csv", rows)
+    return rows
+
+
 def _maybe_plot(out_dir: Path, rq1_by_source: List[dict], rq4_rows: List[dict]) -> bool:
     try:
         import matplotlib
@@ -429,6 +464,9 @@ def main() -> None:
         except Exception as exc:
             print(f"RQ6 skipped: {exc}")
 
+    # RQ8: differential energy per fix type
+    rq8 = rq8_energy_delta(rq4, out_dir)
+
     plotted = _maybe_plot(out_dir, rq1, rq4)
     env = environment_metadata()
     _write_methods(out_dir, env, len(samples), args.runs, available_tools(), scope_cwes)
@@ -443,6 +481,7 @@ def main() -> None:
         "rq4_repaired": sum(1 for r in rq4 if r["changed"]),
         "rq5_baselines": rq5,
         "rq6_secure_at_k": rq6,
+        "rq8_energy_delta": rq8,
         "plots_written": plotted,
         "environment": env,
     }

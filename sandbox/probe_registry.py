@@ -8,9 +8,14 @@ from sandbox.probe_base import SecurityProbe
 from sandbox.security_prober import (
     CommandInjectionProbe,
     DeserializationProbe,
+    HeaderInjectionProbe,
+    InputValidationProbe,
+    LogInjectionProbe,
     PathTraversalProbe,
     ReDoSProbe,
     SqlInjectionProbe,
+    WeakKeyProbe,
+    XssProbe,
 )
 
 _PROBES: list[SecurityProbe] = [
@@ -19,6 +24,11 @@ _PROBES: list[SecurityProbe] = [
     CommandInjectionProbe(),
     DeserializationProbe(),
     ReDoSProbe(),
+    InputValidationProbe(),
+    XssProbe(),
+    HeaderInjectionProbe(),
+    LogInjectionProbe(),
+    WeakKeyProbe(),
 ]
 
 PROBES_BY_RULE: Dict[str, SecurityProbe] = {p.rule_id: p for p in _PROBES}
