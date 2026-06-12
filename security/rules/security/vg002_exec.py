@@ -6,7 +6,7 @@ from security.rules.security.base import SecurityRule
 
 
 class ExecUsageRule(SecurityRule):
-    rule_id = "eval_exec_usage"
+    rule_id = "exec_usage"
     title = "Use of exec()"
     description = "Calling exec() executes arbitrary code and is a critical security risk."
     severity = Severity.CRITICAL
@@ -26,6 +26,7 @@ class ExecUsageRule(SecurityRule):
                     severity=self.severity,
                     file=file_path,
                     line=node.lineno,
+                    suggestion="Replace exec() with explicit dispatch or ast.literal_eval() for safe expression evaluation.",
                     snippet=self._snippet(source_lines, node.lineno),
                 ))
         return findings

@@ -14,9 +14,11 @@ class Scanner:
         self,
         min_severity: Optional[Severity] = None,
         include_snippet: bool = True,
+        dynamic_verify: bool = False,
     ) -> None:
         self.min_severity = min_severity
         self.include_snippet = include_snippet
+        self.dynamic_verify = dynamic_verify
         self._security = SecurityAnalyzer()
         self._smells = SmellAnalyzer()
         self._performance = PerformanceAnalyzer()
@@ -38,6 +40,8 @@ class Scanner:
                     finding.snippet = None
                 result.findings.append(finding)
 
+        from security.models.scoring import compute_risk_score
+        result.exploitability_score = compute_risk_score(result.findings)
         return result
 
     def scan_source(self, code: str, filename: str = "<code>") -> ScanResult:
@@ -53,7 +57,29 @@ class Scanner:
                 if not self.include_snippet:
                     finding.snippet = None
                 result.findings.append(finding)
+        if self.dynamic_verify:
+            self._run_dynamic_verification(result, code)
+        from security.models.scoring import compute_risk_score
+        result.exploitability_score = compute_risk_score(result.findings)
         return result
+
+    def _run_dynamic_verification(self, result: ScanResult, source: str) -> None:
+        """Run dynamic probes on security findings and annotate with dynamic_status."""
+        try:
+            from sandbox.probe_registry import get_probe
+        except ImportError:
+            return
+        for finding in result.findings:
+            probe = get_probe(finding.rule_id)
+            if probe is None:
+                continue
+            try:
+                probe_result = probe.probe(source, finding)
+                # Annotate finding with dynamic verification status
+                finding.dynamic_status = probe_result.status.value
+                finding.dynamic_evidence = probe_result.evidence
+            except Exception:
+                finding.dynamic_status = "unknown"
 
     def _scan_source_str(self, code: str, file_path: str) -> Tuple[List[Finding], Optional[ParseError]]:
         try:

@@ -25,15 +25,18 @@ class UnsafeHtmlOutputRule(SecurityRule):
 
     def check(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
+        primary_lines: set[int] = set()
         for node in iter_calls(tree):
             if self._is_unsafe_markup(node):
                 arg = first_arg(node)
                 if arg and is_non_constant(arg):
+                    primary_lines.add(node.lineno)
                     findings.append(self._finding(node, file_path, source_lines, "User content is marked safe for HTML without escaping."))
                 continue
             if self._is_render_template_string(node):
                 arg = first_arg(node)
                 if arg and is_non_constant(arg):
+                    primary_lines.add(node.lineno)
                     findings.append(
                         self._finding(
                             node,
@@ -77,6 +80,29 @@ class UnsafeHtmlOutputRule(SecurityRule):
                                         snippet=self._snippet(source_lines, ret.lineno),
                                     )
                                 )
+        # Secondary taint-lite check — catches XSS paths via intermediate variables
+        try:
+            from security.taint.tracer import trace_taint
+            taint_paths = trace_taint("\n".join(source_lines), sink_categories=["xss"])
+            for path in taint_paths:
+                if path.sink_lineno not in primary_lines:
+                    primary_lines.add(path.sink_lineno)
+                    findings.append(Finding(
+                        rule_id=self.rule_id,
+                        title=self.title,
+                        message=(
+                            f"Taint-lite: parameter '{path.source_param}' flows to "
+                            f"'{path.sink_call}' via {' -> '.join(path.path_nodes) or 'direct'}."
+                        ),
+                        severity=self.severity,
+                        file=file_path,
+                        line=path.sink_lineno,
+                        suggestion="Escape output (html.escape / Jinja autoescape) and never mark untrusted input as safe.",
+                        snippet=self._snippet(source_lines, path.sink_lineno),
+                    ))
+        except Exception:
+            pass  # taint analysis is best-effort
+
         return findings
 
     def _has_html_docstring(self, func_node: ast.FunctionDef) -> bool:

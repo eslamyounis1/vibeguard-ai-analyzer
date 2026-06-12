@@ -32,3 +32,18 @@ providers = ["openai", "anthropic"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["security*", "sandbox*", "orchestrator*", "fixers*", "corpus*", "experiments*", "benchmarks*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+  "unit: fast unit tests",
+  "integration: tests requiring external services",
+  "slow: long-running tests",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W", "UP", "C4"]
+exclude = ["data", "results", "dataset", ".venv", "vscode-extension"]

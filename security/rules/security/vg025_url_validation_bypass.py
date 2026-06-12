@@ -49,11 +49,9 @@ class UrlValidationBypassRule(SecurityRule):
             receiver = func.value
             if not (isinstance(receiver, ast.Attribute) and receiver.attr in _URL_ATTRS):
                 continue
-            # Only flag when the argument is non-constant (a variable, not a fixed extension)
+            # Flag regardless of whether the argument is constant or variable —
+            # even endswith('example.com') is bypassable with 'evil-example.com'
             if not node.args:
-                continue
-            arg = node.args[0]
-            if isinstance(arg, ast.Constant):
                 continue
             findings.append(
                 Finding(

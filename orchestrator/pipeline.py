@@ -161,6 +161,9 @@ def compare_fix(
         comparison["behavior_preserved"] = None
 
     if before_totals is not None and after_totals is not None:
+        energy_delta_info = _metric_delta(
+            before_totals.get("energy_joules_estimate"), after_totals.get("energy_joules_estimate")
+        )
         comparison["performance"] = {
             "cpu_time_seconds": _metric_delta(
                 before_totals.get("cpu_time_seconds"), after_totals.get("cpu_time_seconds")
@@ -168,16 +171,19 @@ def compare_fix(
             "wall_time_seconds": _metric_delta(
                 before_totals.get("wall_time_seconds"), after_totals.get("wall_time_seconds")
             ),
-            "energy_joules_estimate": _metric_delta(
-                before_totals.get("energy_joules_estimate"), after_totals.get("energy_joules_estimate")
-            ),
+            "energy_joules_estimate": energy_delta_info,
             "memory_peak_bytes": _metric_delta(
                 before_totals.get("memory_peak_bytes"), after_totals.get("memory_peak_bytes")
             ),
         }
+        # Surfaced at top level for RQ8 aggregation
+        comparison["delta_energy_joules"] = (
+            energy_delta_info["delta"] if energy_delta_info else None
+        )
     else:
         comparison["performance"] = {
             "note": "Could not profile before/after (code not executable in sandbox).",
         }
+        comparison["delta_energy_joules"] = None
 
     return comparison

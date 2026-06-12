@@ -29,9 +29,6 @@ class WeakRngSeedRule(SecurityRule):
 
     def check(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
-        if not self._imports_random(tree):
-            return findings
-
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
@@ -44,13 +41,14 @@ class WeakRngSeedRule(SecurityRule):
             ):
                 continue
 
-            # No argument
+            # No argument — flag only when `import random` is explicit (avoids FP on bare seed())
             if not node.args and not node.keywords:
-                findings.append(self._finding(
-                    node, file_path, source_lines,
-                    "random.seed() called without arguments; in older Python this seeds from "
-                    "system time, producing a predictable sequence.",
-                ))
+                if self._imports_random(tree):
+                    findings.append(self._finding(
+                        node, file_path, source_lines,
+                        "random.seed() called without arguments; in older Python this seeds from "
+                        "system time, producing a predictable sequence.",
+                    ))
                 continue
 
             seed_arg = node.args[0] if node.args else None

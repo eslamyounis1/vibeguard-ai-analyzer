@@ -11,6 +11,15 @@ from fixers.fix_string_concat import StringConcatFixer
 from fixers.fix_tls_verify import TlsVerifyFixer
 from fixers.fix_weak_hash import WeakHashFixer
 from fixers.fix_yaml_load import YamlLoadFixer
+from fixers.fix_sql_injection import SqlInjectionFixer
+from fixers.fix_path_traversal import PathTraversalFixer
+from fixers.fix_subprocess_shell import SubprocessShellFixer
+from fixers.fix_insecure_random import InsecureRandomFixer
+from fixers.fix_hardcoded_secret import HardcodedSecretFixer
+from fixers.fix_insecure_cookie import InsecureCookieFixer
+from fixers.fix_xxe import XxeFixer
+from fixers.fix_insecure_tmpfile import InsecureTmpFileFixer
+from fixers.fix_file_permissions import FilePermissionsFixer
 
 _FIXERS: List[Fixer] = [
     WeakHashFixer(),
@@ -19,6 +28,15 @@ _FIXERS: List[Fixer] = [
     AssertFixer(),
     StringConcatFixer(),
     MembershipInLoopFixer(),
+    SqlInjectionFixer(),
+    PathTraversalFixer(),
+    SubprocessShellFixer(),
+    InsecureRandomFixer(),
+    HardcodedSecretFixer(),
+    InsecureCookieFixer(),
+    XxeFixer(),
+    InsecureTmpFileFixer(),
+    FilePermissionsFixer(),
 ]
 
 FIXERS_BY_RULE: Dict[str, List[Fixer]] = {}

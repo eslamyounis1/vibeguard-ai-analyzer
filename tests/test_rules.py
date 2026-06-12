@@ -14,6 +14,8 @@ from security.rules.security.vg004_insecure_random import InsecureRandomRule
 from security.rules.security.vg005_subprocess import SubprocessShellRule
 from security.rules.security.vg006_pickle import PickleRule
 from security.rules.security.vg007_assert import SecurityAssertRule
+from security.rules.security.vg008_weak_hash import WeakHashRule
+from security.rules.security.vg009_os_shell import OsShellRule
 from security.rules.security.vg010_yaml_load import UnsafeYamlLoadRule
 from security.rules.security.vg011_tls_verify import DisabledTlsVerificationRule
 from security.rules.security.vg012_debug_mode import DebugModeRule
@@ -58,7 +60,7 @@ class TestVG002Exec:
         tree, lines = _parse('exec("import os")')
         findings = ExecUsageRule().check(tree, "test.py", lines)
         assert len(findings) == 1
-        assert findings[0].rule_id == "eval_exec_usage"
+        assert findings[0].rule_id == "exec_usage"
 
     def test_no_false_positive_string(self):
         tree, lines = _parse("x = 'executor string'")
@@ -203,6 +205,58 @@ class TestVG007Assert:
     def test_flags_math_assert(self):
         tree, lines = _parse("assert result == expected_value")
         assert len(SecurityAssertRule().check(tree, "test.py", lines)) == 1
+
+
+class TestVG008WeakHash:
+    def test_detects_hashlib_md5(self):
+        tree, lines = _parse("import hashlib\nhashlib.md5(data)")
+        findings = WeakHashRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "weak_hash_algorithm"
+
+    def test_detects_direct_import_md5(self):
+        code = "from hashlib import md5\nmd5(data)"
+        tree, lines = _parse(code)
+        findings = WeakHashRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "weak_hash_algorithm"
+
+    def test_detects_hashlib_new_md5(self):
+        code = "import hashlib\nhashlib.new('md5', data)"
+        tree, lines = _parse(code)
+        findings = WeakHashRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+
+    def test_no_finding_sha256(self):
+        code = "import hashlib\nhashlib.sha256(data)"
+        tree, lines = _parse(code)
+        assert WeakHashRule().check(tree, "test.py", lines) == []
+
+    def test_detects_sha1(self):
+        code = "from hashlib import sha1\nsha1(data)"
+        tree, lines = _parse(code)
+        assert len(WeakHashRule().check(tree, "test.py", lines)) == 1
+
+
+class TestVG009OsShell:
+    def test_detects_os_system(self):
+        code = "import os\nos.system(cmd)"
+        tree, lines = _parse(code)
+        findings = OsShellRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "os_shell_execution"
+
+    def test_detects_bare_system_from_import(self):
+        code = "from os import system\nsystem(cmd)"
+        tree, lines = _parse(code)
+        findings = OsShellRule().check(tree, "test.py", lines)
+        assert len(findings) == 1
+        assert findings[0].rule_id == "os_shell_execution"
+
+    def test_no_finding_subprocess_run(self):
+        code = "import subprocess\nsubprocess.run([])"
+        tree, lines = _parse(code)
+        assert OsShellRule().check(tree, "test.py", lines) == []
 
 
 class TestVG010YamlLoad:
