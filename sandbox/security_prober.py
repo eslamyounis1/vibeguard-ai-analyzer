@@ -90,6 +90,18 @@ class SqlInjectionProbe(SecurityProbe):
 
                 _conn = sqlite3.connect(":memory:")
                 _cur = _conn.cursor()
+                _calls = []
+                class _TrackingCursor:
+                    def __init__(self, inner):
+                        self._inner = inner
+                    def execute(self, query, params=None):
+                        _calls.append({{"query": str(query), "parameterized": params is not None}})
+                        if params is None:
+                            return self._inner.execute(query)
+                        return self._inner.execute(query, params)
+                    def __getattr__(self, name):
+                        return getattr(self._inner, name)
+                _tracked = _TrackingCursor(_cur)
                 try:
                     _cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER, name TEXT)")
                     _cur.execute("INSERT INTO users VALUES (1, 'alice')")
@@ -101,17 +113,22 @@ class SqlInjectionProbe(SecurityProbe):
                 _safe = "alice"
                 _result = {{"sql_injection_probe": "run"}}
                 try:
-                    {func_name}(_cur, _safe)
+                    {func_name}(_tracked, _safe)
                     _result["safe_ok"] = True
                 except Exception as e:
                     _result["safe_ok"] = False
                     _result["safe_err"] = str(e)
                 try:
-                    {func_name}(_cur, _payload)
+                    _calls.clear()
+                    {func_name}(_tracked, _payload)
                     _result["injection_ok"] = True
                 except Exception as e:
                     _result["injection_ok"] = False
                     _result["injection_err"] = str(e)
+                _result["unsafe_query"] = any(
+                    _payload in call["query"] and not call["parameterized"]
+                    for call in _calls
+                )
                 print(json.dumps(_result))
             """)
             res = _run_harness(harness)
@@ -122,8 +139,10 @@ class SqlInjectionProbe(SecurityProbe):
             data = json.loads(stdout.strip().splitlines()[-1]) if stdout.strip() else {}
         except (json.JSONDecodeError, IndexError):
             return self._unknown(finding, f"Non-JSON output: {stdout[:200]}")
-        if data.get("injection_ok") and data.get("safe_ok"):
-            return self._confirmed(finding, "Injection payload executed without error")
+        if data.get("unsafe_query") and data.get("safe_ok"):
+            return self._confirmed(finding, "Payload was interpolated into SQL text")
+        if data.get("safe_ok") and not data.get("unsafe_query"):
+            return self._dismissed(finding, "Payload remained separated from SQL text")
         return self._unknown(finding, "Could not confirm via dynamic probe")
 
 
@@ -142,28 +161,31 @@ class PathTraversalProbe(SecurityProbe):
         src_path = _write_source_tempfile(source)
         try:
             harness = textwrap.dedent(f"""
-                import sys, json, os, tempfile, pathlib
+                import sys, json, os, tempfile, pathlib, builtins
                 exec(open({repr(src_path)}, encoding='utf-8').read())
 
                 _result = {{"path_traversal_probe": "run"}}
-                _safe_dir = tempfile.mkdtemp()
-                _safe_path = os.path.join(_safe_dir, "safe.txt")
-                open(_safe_path, "w").write("safe content")
-                _traversal = "../../../etc/passwd"
+                _opened = []
+                class _FakeFile:
+                    def __enter__(self): return self
+                    def __exit__(self, *args): return False
+                    def read(self): return "probe"
+                def _tracking_open(path, *args, **kwargs):
+                    _opened.append(str(path))
+                    return _FakeFile()
+                def _tracking_read_text(path, *args, **kwargs):
+                    _opened.append(str(path))
+                    return "probe"
+                builtins.open = _tracking_open
+                pathlib.Path.read_text = _tracking_read_text
+                _traversal = "../VG_OUTSIDE"
                 try:
-                    out = {func_name}(_safe_path)
-                    _result["safe_ok"] = True
-                except Exception as e:
-                    _result["safe_ok"] = False
-
-                try:
-                    out2 = {func_name}(_traversal)
+                    {func_name}(_traversal)
                     _result["traversal_ok"] = True
-                    # Check if path escaped base dir
-                    if out2 and "/etc/passwd" in str(out2):
-                        _result["escaped"] = True
                 except Exception as e:
                     _result["traversal_ok"] = False
+                _result["opened"] = _opened
+                _result["escaped"] = any(".." in pathlib.Path(path).parts for path in _opened)
                 print(json.dumps(_result))
             """)
             res = _run_harness(harness)
@@ -196,11 +218,12 @@ class CommandInjectionProbe(SecurityProbe):
         src_path = _write_source_tempfile(source)
         try:
             harness = textwrap.dedent(f"""
-                import sys, json, subprocess
+                import sys, json, subprocess, os, tempfile
                 exec(open({repr(src_path)}, encoding='utf-8').read())
 
                 _result = {{"cmd_injection_probe": "run"}}
-                _payload = "echo safe; echo INJECTED"
+                _marker = tempfile.mktemp(prefix="vg_cmd_probe_")
+                _payload = "echo safe; touch " + _marker
                 _safe = "echo safe"
                 try:
                     out = {func_name}(_safe)
@@ -211,8 +234,7 @@ class CommandInjectionProbe(SecurityProbe):
                 try:
                     out2 = {func_name}(_payload)
                     _result["injection_ok"] = True
-                    if out2 and "INJECTED" in str(out2):
-                        _result["injected"] = True
+                    _result["injected"] = os.path.exists(_marker)
                 except Exception as e:
                     _result["injection_ok"] = False
                 print(json.dumps(_result))
@@ -351,7 +373,7 @@ class InputValidationProbe(SecurityProbe):
                 # Legitimate URL
                 _legit_url = "https://trusted.com/path"
                 # Suffix-attack URL: passes endswith("trusted.com") but is a different domain
-                _evil_url = "https://evil.trusted.com/path"
+                _evil_url = "https://eviltrusted.com/path"
                 try:
                     r1 = {func_name}(_legit_url)
                     _result["legit_accepted"] = bool(r1) if r1 is not None else True
@@ -561,7 +583,7 @@ class WeakKeyProbe(SecurityProbe):
                 try:
                     key = {func_name}()
                     _result["key_generated"] = True
-                    # Inspect key size for RSA/DSA
+                    # Apply the bit threshold only to RSA/DSA keys, not EC keys.
                     key_size = None
                     if hasattr(key, "key_size"):
                         key_size = key.key_size
@@ -570,8 +592,19 @@ class WeakKeyProbe(SecurityProbe):
                             key_size = key.key_size
                         except Exception:
                             pass
+                    key_type = type(key).__name__.lower()
+                    key_module = type(key).__module__.lower()
                     _result["key_size"] = key_size
-                    _result["weak"] = key_size is not None and key_size < 3072
+                    _result["key_type"] = key_type
+                    _result["applicable"] = any(
+                        token in key_type or token in key_module
+                        for token in ("rsa", "dsa", "elgamal")
+                    )
+                    _result["weak"] = (
+                        _result["applicable"]
+                        and key_size is not None
+                        and key_size < 2048
+                    )
                 except Exception as e:
                     _result["key_generated"] = False
                     _result["error"] = str(e)
@@ -586,7 +619,9 @@ class WeakKeyProbe(SecurityProbe):
         except (json.JSONDecodeError, IndexError):
             return self._unknown(finding, f"Non-JSON output: {stdout[:200]}")
         if data.get("weak") and data.get("key_generated"):
-            return self._confirmed(finding, f"Key generated with size {data.get('key_size')} bits (< 3072)")
+            return self._confirmed(finding, f"Key generated with size {data.get('key_size')} bits (< 2048)")
+        if data.get("key_generated") and not data.get("applicable"):
+            return self._dismissed(finding, f"Key type {data.get('key_type')} is not RSA/DSA")
         if data.get("key_generated") and data.get("key_size") is not None and not data.get("weak"):
             return self._dismissed(finding, f"Key size {data.get('key_size')} bits meets minimum")
         return self._unknown(finding, "Could not inspect key size via dynamic probe")

@@ -15,11 +15,13 @@ class Scanner:
         min_severity: Optional[Severity] = None,
         include_snippet: bool = True,
         dynamic_verify: bool = False,
+        enable_taint: bool = True,
     ) -> None:
         self.min_severity = min_severity
         self.include_snippet = include_snippet
         self.dynamic_verify = dynamic_verify
-        self._security = SecurityAnalyzer()
+        self.enable_taint = enable_taint
+        self._security = SecurityAnalyzer(enable_taint=enable_taint)
         self._smells = SmellAnalyzer()
         self._performance = PerformanceAnalyzer()
 

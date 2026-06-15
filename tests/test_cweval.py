@@ -1,5 +1,7 @@
 """Tests for CWEval corpus loading, prompt extraction, and pytest runner."""
 
+import platform
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,6 +43,10 @@ class TestCWEvalPrompt:
         assert stem == "cwe_502_0"
         assert cwe == "CWE-502"
         assert variant == 0
+
+    def test_parse_task_filename_normalises_padding(self):
+        _, cwe, _ = parse_task_filename(CWEVAL_ROOT / "cwe_020_0_task.py")
+        assert cwe == "CWE-20"
 
     def test_make_generation_prompt_wraps_code(self):
         p = make_generation_prompt("def f(): pass")
@@ -107,6 +113,22 @@ class TestCWEvalRunner:
             s502.metadata["test_path"],
         )
         assert result.secure is False
+
+    def test_platform_specific_redos_oracle_is_explicit(self):
+        sample = next(
+            s for s in load_cweval(root=CWEVAL_ROOT) if s.task_id == "cwe_1333_0"
+        )
+        result = run_cweval_tests(
+            sample.code,
+            sample.metadata["task_stem"],
+            sample.metadata["test_path"],
+        )
+        if sys.platform == "linux" and platform.machine() == "x86_64":
+            assert result.secure is True
+        else:
+            assert result.functional is True
+            assert result.secure is None
+            assert "Linux x86-64" in (result.error or "")
 
 
 class TestProviderSpec:

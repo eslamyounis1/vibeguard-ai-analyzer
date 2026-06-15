@@ -1,7 +1,7 @@
 """VG020 — Weak Cryptographic Key Size (CWE-326).
 
 Detects:
-- RSA/DSA/ElGamal key generation with key size < 3072 bits (NIST SP 800-57).
+- RSA/DSA/ElGamal key generation below a configurable minimum (2048 bits by default).
 - Use of broken symmetric ciphers: DES, DES3, ARC4/RC4.
 
 Supports both APIs:
@@ -20,18 +20,20 @@ _BROKEN_CIPHERS = frozenset({"DES", "DES3", "ARC4", "RC4", "Blowfish"})
 # PyCryptodome module names (lowercase) that wrap asymmetric key gen
 _ASYMMETRIC_MODULES = frozenset({"rsa", "dsa", "elgamal"})
 _KEYGEN_FUNCS = frozenset({"generate_private_key", "generate_parameters", "generate"})
-_MIN_KEY_BITS = 3072
+_DEFAULT_MIN_KEY_BITS = 2048
 
 
 class WeakCryptoKeyRule(SecurityRule):
     rule_id = "weak_crypto_key"
     title = "Weak Cryptographic Key Size"
     description = (
-        "RSA/DSA keys below 3072 bits and broken ciphers (DES, RC4) are "
-        "cryptographically weak. NIST SP 800-57 recommends 3072+ bits for "
-        "keys intended for use beyond 2030."
+        "Undersized RSA/DSA keys and broken ciphers (DES, RC4) are "
+        "cryptographically weak. Use a 3072-bit policy for protection beyond 2030."
     )
     severity = Severity.HIGH
+
+    def __init__(self, min_key_bits: int = _DEFAULT_MIN_KEY_BITS) -> None:
+        self.min_key_bits = min_key_bits
 
     def check(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
@@ -47,23 +49,23 @@ class WeakCryptoKeyRule(SecurityRule):
             # PyCryptodome: RSA.generate(bits) / DSA.generate(bits)
             if func.attr == "generate" and obj_name in _ASYMMETRIC_CLASSES:
                 key_size = self._key_size_positional(node)
-                if key_size is not None and key_size < _MIN_KEY_BITS:
+                if key_size is not None and key_size < self.min_key_bits:
                     findings.append(self._finding(
                         node, file_path, source_lines,
                         f"{obj_name}.generate({key_size}) uses a key size below "
-                        f"{_MIN_KEY_BITS} bits (NIST SP 800-57).",
-                        f"Use {obj_name}.generate({_MIN_KEY_BITS}) or larger.",
+                        f"{self.min_key_bits} bits.",
+                        f"Use {obj_name}.generate({self.min_key_bits}) or larger.",
                     ))
 
             # cryptography lib: rsa.generate_private_key / dsa.generate_parameters
             if func.attr in _KEYGEN_FUNCS and obj_name in _ASYMMETRIC_MODULES:
                 key_size = self._key_size_kwarg(node)
-                if key_size is not None and key_size < _MIN_KEY_BITS:
+                if key_size is not None and key_size < self.min_key_bits:
                     findings.append(self._finding(
                         node, file_path, source_lines,
                         f"{obj_name}.{func.attr}(key_size={key_size}) uses a key size below "
-                        f"{_MIN_KEY_BITS} bits (NIST SP 800-57).",
-                        f"Use key_size={_MIN_KEY_BITS} or larger.",
+                        f"{self.min_key_bits} bits.",
+                        f"Use key_size={self.min_key_bits} or larger.",
                     ))
 
             # DES.new() / ARC4.new() etc.

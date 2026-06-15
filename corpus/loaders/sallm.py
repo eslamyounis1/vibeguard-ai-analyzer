@@ -32,7 +32,7 @@ _CWE_RE = re.compile(r"cwe(\d+)", re.IGNORECASE)
 
 def _cwe_from_id(record_id: str) -> Optional[str]:
     match = _CWE_RE.search(record_id or "")
-    return f"CWE-{match.group(1)}" if match else None
+    return f"CWE-{int(match.group(1))}" if match else None
 
 
 def _to_sample(record: dict) -> CorpusSample:
