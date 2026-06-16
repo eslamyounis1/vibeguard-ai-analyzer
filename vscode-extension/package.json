@@ -134,6 +134,9 @@
           "command": "vibeguard.openChat"
         },
         {
+          "command": "vibeguard.openChatPanel"
+        },
+        {
           "command": "vibeguard.checkHealth"
         },
         {

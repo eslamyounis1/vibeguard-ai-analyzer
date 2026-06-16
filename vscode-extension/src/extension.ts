@@ -1,10 +1,13 @@
 import * as vscode from "vscode";
 import { analyzeCode, analyzeProfile, ApiError, checkHealth, compareCode, fixCode, profileCode } from "./client";
+import { VibeGuardCodeActionProvider } from "./codeActions";
 import { ChatPanel } from "./chatPanel";
 import { ChatViewProvider } from "./chatViewProvider";
 import { getConfig } from "./config";
 import { VibeGuardDiagnostics } from "./diagnostics";
+import { VibeGuardHoverProvider } from "./hoverProvider";
 import { formatAnalyzeSummary, formatCompareReport, formatFixReport, formatProfileReport } from "./report";
+import type { Finding } from "./types";
 
 const OUTPUT_CHANNEL = "VibeGuard";
 
@@ -39,11 +42,46 @@ export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = new VibeGuardDiagnostics();
   const chatViewProvider = new ChatViewProvider(context.extensionUri);
 
+  // Status bar: chat shortcut (right side, priority 90)
   const chatStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
   chatStatusBar.text = "$(comment-discussion) VibeGuard Chat";
   chatStatusBar.command = "vibeguard.openChat";
   chatStatusBar.tooltip = "Open VibeGuard Secure Code Chat (sidebar)";
   chatStatusBar.show();
+
+  // Status bar: scan result counter (right side, priority 85 — appears left of chat button)
+  const scanStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 85);
+  scanStatusBar.command = "vibeguard.analyze";
+  scanStatusBar.tooltip = "VibeGuard: click to re-analyze";
+
+  function updateScanStatusBar(findings: Finding[]): void {
+    const errors = findings.filter((f) => f.severity === "HIGH" || f.severity === "CRITICAL").length;
+    const warnings = findings.filter((f) => f.severity === "MEDIUM").length;
+    const hints = findings.filter((f) => f.severity === "LOW" || f.severity === "INFO").length;
+    if (findings.length === 0) {
+      scanStatusBar.text = "$(pass) VG";
+      scanStatusBar.tooltip = "VibeGuard: no issues found — click to re-analyze";
+      scanStatusBar.backgroundColor = undefined;
+    } else {
+      const parts: string[] = [];
+      if (errors > 0) {
+        parts.push(`$(error) ${errors}`);
+      }
+      if (warnings > 0) {
+        parts.push(`$(warning) ${warnings}`);
+      }
+      if (hints > 0) {
+        parts.push(`$(info) ${hints}`);
+      }
+      scanStatusBar.text = parts.join("  ");
+      scanStatusBar.tooltip = `VibeGuard: ${findings.length} issue(s) — click to re-analyze`;
+      scanStatusBar.backgroundColor =
+        errors > 0
+          ? new vscode.ThemeColor("statusBarItem.errorBackground")
+          : new vscode.ThemeColor("statusBarItem.warningBackground");
+    }
+    scanStatusBar.show();
+  }
 
   async function runAnalyze(options: { securityOnly: boolean; selectionOnly: boolean }) {
     const editor = getActivePythonEditor();
@@ -71,6 +109,7 @@ export function activate(context: vscode.ExtensionContext): void {
             progress.report({ message: "Running security + sandbox analysis…" });
             const combined = await analyzeProfile(config, code);
             diagnostics.setFromAnalyze(uri, editor.document, combined.static);
+            updateScanStatusBar(combined.static.findings);
             output.clear();
             output.appendLine(formatAnalyzeSummary(combined.static));
             output.appendLine("");
@@ -99,6 +138,7 @@ export function activate(context: vscode.ExtensionContext): void {
             progress.report({ message: "Running security analysis…" });
             const analyzeResult = await analyzeCode(config, code);
             diagnostics.setFromAnalyze(uri, editor.document, analyzeResult);
+            updateScanStatusBar(analyzeResult.findings);
             output.clear();
             output.appendLine(formatAnalyzeSummary(analyzeResult));
             output.show(true);
@@ -170,7 +210,19 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     diagnostics,
     chatStatusBar,
+    scanStatusBar,
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider),
+    // Language providers
+    vscode.languages.registerCodeActionsProvider(
+      { language: "python" },
+      new VibeGuardCodeActionProvider(),
+      { providedCodeActionKinds: VibeGuardCodeActionProvider.providedCodeActionKinds },
+    ),
+    vscode.languages.registerHoverProvider(
+      { language: "python" },
+      new VibeGuardHoverProvider(diagnostics),
+    ),
+    // Commands
     vscode.commands.registerCommand("vibeguard.analyze", () =>
       runAnalyze({ securityOnly: false, selectionOnly: false }),
     ),

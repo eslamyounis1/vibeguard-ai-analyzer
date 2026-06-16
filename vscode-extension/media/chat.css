@@ -5,6 +5,7 @@
   --border: var(--vscode-panel-border);
   --accent: var(--vscode-button-background);
   --accent-fg: var(--vscode-button-foreground);
+  --accent-hover: var(--vscode-button-hoverBackground, var(--accent));
   --user-bg: var(--vscode-inputValidation-infoBackground, rgba(0, 120, 212, 0.15));
   --assistant-bg: var(--vscode-editor-inactiveSelectionBackground);
   --error: var(--vscode-errorForeground);
@@ -26,9 +27,20 @@ body {
   height: 100vh;
 }
 
+/* ── Header ── */
+
 header {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header-text {
+  flex: 1;
+  min-width: 0;
 }
 
 header h1 {
@@ -40,7 +52,30 @@ header p {
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+#clear-btn {
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 2px;
+  font-family: inherit;
+}
+
+#clear-btn:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+/* ── Messages ── */
 
 #messages {
   flex: 1;
@@ -50,6 +85,42 @@ header p {
   flex-direction: column;
   gap: 10px;
 }
+
+/* ── Empty state ── */
+
+#empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 24px;
+  color: var(--muted);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--fg);
+}
+
+.empty-hint {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+kbd {
+  background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.78rem;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+/* ── Message bubbles ── */
 
 .msg {
   padding: 10px 12px;
@@ -78,14 +149,34 @@ header p {
   color: var(--error);
 }
 
+/* ── Loading animation (applied to .status.loading) ── */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.msg.loading {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ── Message metadata ── */
+
 .msg .meta {
   font-size: 0.8rem;
   color: var(--muted);
   margin-bottom: 6px;
 }
 
+/* ── Code blocks ── */
+
+.code-wrapper {
+  position: relative;
+  margin-top: 8px;
+}
+
 .msg pre {
-  margin: 8px 0 0;
+  margin: 0;
   padding: 10px;
   overflow-x: auto;
   background: var(--bg);
@@ -93,14 +184,58 @@ header p {
   border-radius: 6px;
 }
 
+.copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
+  color: var(--vscode-button-secondaryForeground, var(--fg));
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.code-wrapper:hover .copy-btn {
+  opacity: 1;
+}
+
+/* ── Findings list ── */
+
 .findings {
   margin-top: 8px;
   font-size: 0.85rem;
+  padding-left: 16px;
 }
 
 .findings li {
   color: var(--warn);
 }
+
+/* ── Retry button (shown inside error messages) ── */
+
+.retry-btn {
+  display: inline-block;
+  margin-top: 8px;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, var(--accent));
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.retry-btn:hover {
+  opacity: 0.8;
+}
+
+/* ── Footer ── */
 
 footer {
   border-top: 1px solid var(--border);
@@ -116,6 +251,12 @@ footer {
   border-radius: 6px;
   padding: 8px;
   font-family: inherit;
+  font-size: inherit;
+}
+
+#input:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
 }
 
 .actions {
@@ -131,9 +272,28 @@ button {
   border-radius: 6px;
   padding: 6px 12px;
   cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Accessibility ── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }

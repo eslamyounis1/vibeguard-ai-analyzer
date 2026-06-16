@@ -118,7 +118,6 @@ export interface CompareResponse {
 
 export interface AnalyzeProfileResponse {
   ok: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static: AnalyzeResponse;
   dynamic: ProfileResponse;
   performance_corroboration: Array<{ rule_id: string; confirmed: boolean; measured_ms?: number }>;
