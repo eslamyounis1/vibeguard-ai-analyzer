@@ -95,3 +95,31 @@ export interface ChatResponse {
   provider?: string;
   model?: string;
 }
+
+export interface FixResponse {
+  ok: boolean;
+  changed: boolean;
+  safe: boolean;
+  note?: string;
+  findings_before: Finding[];
+  findings_after: Finding[];
+  applied: Array<{ rule_id: string; description: string; line?: number }>;
+  fixed_code?: string;
+}
+
+export interface CompareResponse {
+  ok: boolean;
+  fix: { changed: boolean; safe: boolean; applied: unknown[] };
+  security: { findings_before: Finding[]; findings_after: Finding[]; delta: number };
+  performance: { cpu_before?: number; cpu_after?: number; energy_before?: number; energy_after?: number };
+  behavior_preserved: boolean;
+  delta_energy_joules?: number;
+}
+
+export interface AnalyzeProfileResponse {
+  ok: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static: AnalyzeResponse;
+  dynamic: ProfileResponse;
+  performance_corroboration: Array<{ rule_id: string; confirmed: boolean; measured_ms?: number }>;
+}

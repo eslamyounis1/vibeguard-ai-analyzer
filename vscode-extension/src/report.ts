@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ProfileResponse } from "./types";
+import type { AnalyzeResponse, CompareResponse, FixResponse, ProfileResponse } from "./types";
 
 export function formatAnalyzeSummary(result: AnalyzeResponse): string {
   const lines: string[] = ["=== VibeGuard Security Analysis ===", ""];
@@ -114,6 +114,81 @@ export function formatProfileReport(result: ProfileResponse): string {
       lines.push(`  … and ${result.profile.length - 25} more`);
     }
   }
+
+  return lines.join("\n");
+}
+
+export function formatFixReport(result: FixResponse): string {
+  const lines: string[] = ["=== VibeGuard Auto-Fix Report ===", ""];
+
+  if (!result.ok) {
+    lines.push("Fix failed.");
+    return lines.join("\n");
+  }
+
+  if (!result.changed) {
+    lines.push("No deterministic fixes could be applied.");
+    if (result.note) {
+      lines.push(`Note: ${result.note}`);
+    }
+    return lines.join("\n");
+  }
+
+  lines.push(`Applied ${result.applied.length} fix(es):`, "");
+  for (const fix of result.applied) {
+    const location = fix.line !== undefined ? ` (line ${fix.line})` : "";
+    lines.push(`  • [${fix.rule_id}]${location}: ${fix.description}`);
+  }
+  lines.push("");
+
+  const beforeCount = result.findings_before.length;
+  const afterCount = result.findings_after.length;
+  const delta = beforeCount - afterCount;
+  lines.push(`Security findings: ${beforeCount} → ${afterCount} (${delta >= 0 ? "-" + String(delta) : "+" + String(Math.abs(delta))})`);
+  lines.push(`Safe to apply: ${result.safe ? "yes" : "no — manual review required"}`);
+
+  if (result.note) {
+    lines.push(`Note: ${result.note}`);
+  }
+
+  return lines.join("\n");
+}
+
+export function formatCompareReport(result: CompareResponse): string {
+  const lines: string[] = ["=== VibeGuard Compare Report ===", ""];
+
+  if (!result.ok) {
+    lines.push("Comparison failed.");
+    return lines.join("\n");
+  }
+
+  const sec = result.security;
+  const beforeCount = sec.findings_before.length;
+  const afterCount = sec.findings_after.length;
+  lines.push("Security:");
+  lines.push(`  Findings before: ${beforeCount}`);
+  lines.push(`  Findings after:  ${afterCount}`);
+  lines.push(`  Delta:           ${sec.delta >= 0 ? "-" + String(sec.delta) : "+" + String(Math.abs(sec.delta))}`);
+  lines.push("");
+
+  const perf = result.performance;
+  if (perf && (perf.cpu_before !== undefined || perf.energy_before !== undefined)) {
+    lines.push("Performance:");
+    if (perf.cpu_before !== undefined && perf.cpu_after !== undefined) {
+      lines.push(`  CPU time: ${perf.cpu_before}s → ${perf.cpu_after}s`);
+    }
+    if (perf.energy_before !== undefined && perf.energy_after !== undefined) {
+      lines.push(`  Energy: ${perf.energy_before}J → ${perf.energy_after}J`);
+    }
+    lines.push("");
+  }
+
+  if (result.delta_energy_joules !== undefined) {
+    lines.push(`Energy saved: ${result.delta_energy_joules.toFixed(4)} J`);
+  }
+
+  lines.push(`Behavior preserved: ${result.behavior_preserved ? "yes" : "no — verify manually"}`);
+  lines.push(`Fixes applied: ${result.fix.applied.length}`);
 
   return lines.join("\n");
 }
