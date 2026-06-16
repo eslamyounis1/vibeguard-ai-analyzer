@@ -452,11 +452,14 @@ Report coverage gaps honestly in the paper.
 
 ### Sprint 4 — Polish
 
-- [ ] 6.1 Rules for top missing CWEval CWEs (020, 022, 918, 643, …)
+- [x] 6.1 Verified: CWE-020/022/078/918/643 rules already exist (VG005/009/014/015/016/017/019) — plan table was stale
+- [x] 6.2 Fixers for gap rules: `fix_xss.py`, `fix_open_redirect.py`, `fix_ssrf.py`, `fix_xpath_injection.py` added to registry (19 total fixers)
 - [x] **1.8** `corpus/merge.py` (`python -m corpus.merge`)
-- [ ] `scripts/reproduce_study.sh` (build → merge → study)
-- [ ] README sync with this plan
-- [ ] `results/baselines_multi/` — baselines on 50 AI lines from `cweval_multi`
+- [x] `scripts/reproduce_study.sh` — enhanced with `--with-detection`, `--with-llm-repair`, `--with-secure-at-k` flags
+- [x] README sync with current architecture (41 rules, 19 fixers, paper results, reproduce instructions)
+- [x] Threats-to-validity section expanded (4 categories: construct, internal, external, conclusion validity)
+- [x] `tests/test_fixers_v3.py` — 23 tests for new fixers (all passing)
+- [ ] `results/baselines_multi/` — baselines on 50 AI lines from `cweval_multi` (requires data)
 
 ---
 

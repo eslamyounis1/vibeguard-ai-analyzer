@@ -481,19 +481,49 @@ The magnitude of this effect is substantial. On SALLM, 57 of VibeGuard's 99 appa
 
 ## 7. Threats to Validity
 
-**Construct validity.** Our primary security metric is the CWEval oracle (pytest-based behavioral tests). The oracle correctly identifies most genuine vulnerabilities but, as we show, mislabels 60% of false negatives as missed detections when models wrote secure implementations. Both raw and corrected metrics are reported to bound the true detection quality.
+We organize threats under the four standard validity categories: construct, internal, external, and conclusion validity.
 
-**Internal validity.** All model generations used temperature=0.2 and are cached. Re-running reproduces identical results. However, different temperatures or non-deterministic API behavior could change results. The RQ4-B LLM fixer used temperature=0.0 for maximal reproducibility.
+### 7.1 Construct Validity
 
-**External validity.** Results are Python-only. CWEval is limited to 25 tasks; SALLM and SecurityEval provide cross-dataset generalization evidence across 100 and 121 additional samples respectively. Open-source models were not evaluated in this version. SeCodePLT was excluded due to known mislabeled Python splits.
+**Oracle as ground truth.** Our primary security metric is the CWEval oracle (pytest-based behavioral tests). The oracle correctly identifies most genuine vulnerabilities but, as we show, mislabels 60% of false negatives as missed detections when models wrote secure implementations. Both raw and corrected metrics are reported to bound the true detection quality. Some oracle failures may reflect test sensitivity issues rather than genuine insecurity — for example, a cryptographic key of 4096 bits may fail an oracle that checks for exactly 2048 bits.
 
-**Single-label ground truth bias.** All three benchmark datasets assign exactly one CWE per sample. This biases standard P/R/F1 metrics against tools that correctly detect multiple co-occurring vulnerabilities. We address this with family-grouped evaluation (Section 5.7) and detection rate, but the corrected numbers should still be interpreted with this caveat: family grouping may over-merge distinct vulnerability types in some cases.
+**Single-label ground truth bias.** All three benchmark datasets (CWEval, SALLM, SecurityEval) assign exactly one CWE label per sample. This biases standard P/R/F1 metrics against tools that correctly detect multiple co-occurring vulnerabilities, and also penalizes correct detection when a tool identifies a related but not identical CWE. We address this with family-grouped evaluation (Section 5.7) and report raw detection rate as an oracle-free utility measure, but both corrections have their own limitations: family grouping may over-merge distinct vulnerability types, and detection rate does not penalize false alarms.
 
-**Energy measurement (RQ3 deferred).** RQ3 requires Linux hardware performance counters (RAPL). On macOS, only a CPU-time linear proxy is available, which is dominated by Python interpreter startup overhead on short tasks. Energy figures from the macOS proxy are not credible for publication and are excluded. A Linux-based energy study is deferred to future work.
+**Static tool comparison scope.** CWE-scoped metrics (RQ5) restrict both ground truth and detections to VibeGuard-supported CWEs. This benefits VibeGuard and penalizes Bandit, which covers different CWEs. We report both scoped and unscoped numbers where possible, but the scoped comparison is the methodologically cleanest: it measures recall on tasks both tools are designed to handle.
 
-**Rule expansion effects on RQ1/RQ2.** The v1→v2→v3 increases in static finding counts for human references are artifacts of new rules firing on reference API patterns (RSA.generate(2048), log-formatting functions), not changes in code quality. This inflation must be considered when comparing cross-version finding counts.
+**Dynamic probe accuracy.** The ten sandbox probes use crafted malicious inputs to attempt exploitation. A probe that fails to trigger does not prove the code is secure — it proves that specific exploit inputs did not succeed in the isolated environment. Probe accuracy is measured via mutation testing (RQ7) which shows 85%+ accuracy on the patterns tested, but novel exploitation patterns may evade the probes.
 
-**Oracle as ground truth.** CWEval's security oracle tests specific behavioral contracts. Some oracle failures may reflect test quality issues rather than genuine security vulnerabilities. Our oracle calibration analysis (Section 5.4) quantifies this effect: 21/35 FNs are oracle-safe.
+### 7.2 Internal Validity
+
+**Reproducibility of model outputs.** All model generations used temperature=0.2 and are persisted in the corpus files. Re-running with the same cached corpus reproduces identical scanner, oracle, and baseline results. Re-generating the corpus via API at a future date may produce different outputs as models are updated. The RQ4-B LLM fixer (gpt-4o-mini) used temperature=0.0 for repair tasks to maximize repair reproducibility.
+
+**Rule expansion confounds across versions.** The v1→v2→v3 increases in static finding counts for human references are artifacts of new rules firing on reference API patterns (RSA.generate(2048), log-formatting functions), not changes in code quality. All results in this paper use the v3 rule set consistently. Cross-version comparisons in the plan document should not be taken as evidence of model or code quality change.
+
+**Baseline tool versions.** Bandit was evaluated at version 1.8 with default configuration. Different Bandit versions or custom configuration profiles may produce different results. Semgrep was not available in this evaluation environment and could not be compared.
+
+**LLM repair confound.** RQ4-B uses gpt-4o-mini for repair, the same model family as one of the generation models (gpt-4o-mini). The repair model may have seen the CWEval reference solutions in training, which could inflate repair success rates relative to models not trained on the same distribution.
+
+### 7.3 External Validity
+
+**Python-only scope.** All rules, fixers, and dynamic probes target Python 3.10+. The CWEval benchmark uses Python tasks exclusively. Results do not generalize to other languages (JavaScript, Go, Java, etc.) without reimplementation of the detection layers.
+
+**Benchmark scale.** CWEval provides 25 Python tasks covering 25 distinct CWE classes. This is a comprehensive but small-scale evaluation. 25 tasks cannot be representative of the full space of security-critical programming problems. SALLM (100 samples) and SecurityEval (121 samples) broaden the empirical base but all three datasets are drawn from the same academic community and may share selection biases.
+
+**Model coverage.** Results cover four OpenAI API models (gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini) at temperature=0.2. Open-source models (Llama 3, Gemma, Mistral, CodeLlama) were not evaluated. The Gemma4:e2b run via local Ollama in earlier study versions was excluded from the final paper due to non-deterministic API behavior in the local endpoint. Results may not generalize to instruction-tuned variants or fine-tuned code models.
+
+**SeCodePLT exclusion.** The SeCodePLT corpus (8,000+ vulnerable/patched pairs) was excluded because the downloaded Python splits (`python_*` parquets) are mislabeled C/C++ CVE rows yielding 0 Python samples. The loader implementation is correct; the dataset requires re-download from the corrected Hugging Face release. This exclusion limits the scale of our cross-dataset validation.
+
+**CWE coverage gaps.** VibeGuard's 41 security rules cover 28 distinct CWE classes. Several important CWEval CWEs (e.g., CWE-502 YAML load, CWE-327 weak hash, CWE-617 assert-as-validation) are well-covered, while others (e.g., certain key derivation and timing-attack patterns) are only partially addressed. Our CWE-scoped evaluation explicitly accounts for this; the family-grouped evaluation further reduces the impact of boundary cases.
+
+### 7.4 Conclusion Validity
+
+**Energy measurement (RQ3 deferred).** RQ3 requires Linux hardware performance counters (RAPL) to produce publication-quality energy measurements. On macOS arm64, only a CPU-time linear proxy is available. For CWEval and EvalPlus tasks (short functions, <50 LOC), Python interpreter startup overhead dominates measured energy, making the linear proxy values unreliable as a proxy for true energy consumption. RQ3 is therefore excluded from the main results and deferred to a Linux environment with RAPL support. The energy measurement infrastructure (`sandbox/energy/`) is complete and validated on isolated benchmarks.
+
+**Statistical power.** With 25 CWEval tasks and 4 models (100 AI samples), our per-CWE and per-model confidence intervals are wide. The aggregate metrics (overall F1, cross-dataset detection rates) are more reliable; per-CWE and per-model breakdowns should be interpreted as exploratory rather than confirmatory. We report 95% bootstrap confidence intervals where applicable.
+
+**Secure@k sample size.** The secure@k / vulnerable@k metrics (RQ6) are computed with k=1 (single attempt per task per model). Computing reliable pass@k estimates for k>1 would require multiple independent samples per task, which the current corpus does not support. The k=1 results are best interpreted as point estimates of model security awareness per task.
+
+**Oracle calibration bias.** Our claim that "60% of FNs are oracle-safe" is based on manually inspecting FN samples and determining whether the model's implementation was genuinely secure. This manual calibration was performed by the authors and is subject to evaluator bias. An independent security audit of the FN samples could yield a different oracle-safe fraction.
 
 ---
 

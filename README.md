@@ -108,20 +108,30 @@ Generates optimized code and explanations, with the option to automatically refa
 
 ## Current Stage
 
-VibeGuard is currently in a **working, end-to-end stage**.
+VibeGuard is **production-ready** and serves as the research instrument for an ASE 2026 empirical study.
 
-**What is available now:**
-- Security, code-quality, and performance scanning for Python projects (static analysis)
-- Runtime profiling through a sandbox API (self-time CPU, memory, estimated energy)
-- **Automatic safe fixes** for several issue classes (`vibeguard scan --fix`)
-- **Orchestration pipeline** that corroborates static performance findings with measured runtime cost
-- **Comparative before/after metrics** (security, performance, energy) for proposed fixes
-- Benchmarking tools to measure detection quality (Precision / Recall / F1)
+**What is implemented:**
+- **41 security rules** (VG001–VG040+) covering injection, cryptography, deserialization, SSRF, XSS, path traversal, and more
+- **9 code smell rules** (SM001–SM009) and **3 performance rules** (PF001–PF003)
+- **19 deterministic fixers** including XSS, SSRF, open redirect, XPath injection, SQL injection, path traversal, and more
+- **LLM whole-file fixer** (gpt-4o-mini) for complex security repairs not addressable by pattern substitution
+- **Dynamic sandbox** with 10 runtime security probes and 4 energy measurement backends (RAPL → CodeCarbon → powermetrics → linear proxy)
+- **Taint-lite data-flow analysis** integrated into SSRF (VG015) and XSS (VG016) rules
+- **Orchestration pipeline** combining static + dynamic + fix + oracle-gated comparison
+- **Research harness** (RQ1–RQ7): prevalence, AI-vs-human comparison, auto-repair effectiveness, baseline comparison, cross-dataset evaluation, secure@k metrics
+- **VS Code extension** (v0.2.0) with security scan, profiling, chat sidebar, and Problems panel integration
+- **Cross-dataset validation** on SALLM (100 samples), SecurityEval (121 samples), and EvalPlus (164 benign samples)
 
-**What comes next:**
-- More auto-fixers (string-concat-in-loop, nested-loop restructuring)
-- Optional AI-assisted refactoring on top of the deterministic fixers
-- Higher-fidelity energy measurement (RAPL / CodeCarbon)
+**Key results (ASE 2026 paper):**
+- VibeGuard F1 = **0.636** vs Bandit F1 = 0.224 (2.8× improvement on CWEval)
+- Detection rate: **72%** on SALLM vs 51% Bandit; **69.4%** on SecurityEval vs 47.9% Bandit
+- LLM repair achieves **32.1% oracle security improvement** on insecure samples (vs 0% deterministic)
+- Functional-but-insecure gap: **24–32%** of functionally passing AI code fails security tests
+
+**Deferred to future work:**
+- Linux RAPL energy measurement for RQ3 (infrastructure complete; platform-specific)
+- SeCodePLT evaluation (data re-download required; loader implemented)
+- Semgrep baseline comparison; open-source model evaluation (Llama 3, Gemma, Mistral)
 
 ---
 
@@ -188,20 +198,37 @@ vibeguard scan ./project --fix
 vibeguard scan ./project --fix --dry-run --format json
 ```
 
-Currently auto-fixable rules:
+Currently auto-fixable rules (19 deterministic fixers):
 
 | Rule | Fix |
 |---|---|
 | `weak_hash_algorithm` | `hashlib.md5/sha1` → `hashlib.sha256` |
 | `unsafe_yaml_load` | `yaml.load(x)` → `yaml.safe_load(x)` |
 | `tls_verification_disabled` | `verify=False` → `verify=True` |
-| `assert_used_for_validation` | `assert cond, msg` → `if not (cond): raise AssertionError(msg)` |
+| `assert_used_for_validation` | `assert cond` → `if not cond: raise AssertionError(...)` |
 | `string_concat_in_loop` | loop `s += x` → list append + `"".join(...)` (energy) |
 | `membership_in_loop` | `x in [a, b, c]` → `x in {a, b, c}` (O(1) lookups) |
+| `sql_query_construction` | f-string SQL → parameterized `?` placeholders |
+| `path_traversal` | `open(path)` → `open(os.path.normpath(os.path.join(BASE_DIR, path)))` |
+| `subprocess_shell_true` | `shell=True` string → split list args |
+| `insecure_random` | `random.choice/randint` → `secrets.choice/randbelow` |
+| `hardcoded_secret` | literal credential → `os.environ.get('VAR')` |
+| `insecure_cookie` | `set_cookie(...)` → add `secure=True, httponly=True` |
+| `xxe_vulnerability` | `xml.etree.ElementTree` import → `defusedxml` |
+| `insecure_tmpfile` | `tempfile.mktemp()` → `tempfile.mkstemp()` |
+| `incorrect_file_permissions` | `os.chmod(path, 0o777)` → `os.chmod(path, 0o640)` |
+| `unsafe_html_output` | `Response(user_data)` → `Response(html.escape(str(user_data)))` |
+| `open_redirect` | `redirect(url)` → `redirect(url if url.startswith('/') else '/')` |
+| `ssrf_unvalidated_url` | `requests.get(url)` → scheme-guarded URL expression |
+| `xpath_injection` | f-string XPath → parameterized lxml XPath with `$var` |
 
-The two performance fixers can additionally be validated against a task's own
-test suite via the orchestrator's `compare_fix(..., tests=...)`, which reports
-`behavior_verified` only when the tests pass both before and after the fix.
+All fixers are additionally wrapped by the **LLM fixer** (gpt-4o-mini) for
+cases where deterministic pattern substitution is insufficient. The LLM fixer
+triggers on 38% of insecure samples and achieves 32.1% oracle improvement.
+
+Fixes can be validated against a task's own test suite via the orchestrator's
+`compare_fix(..., tests=...)`, which reports `behavior_verified` only when
+tests pass both before and after the fix.
 
 ### Other flags
 
@@ -220,33 +247,56 @@ test suite via the orchestrator's `compare_fix(..., tests=...)`, which reports
 
 ---
 
-## Implemented Security Rules (Phase 1)
+## Implemented Security Rules (41 rules, VG001–VG040)
 
-| Rule ID | Title | Severity |
-|---------|-------|----------|
-| VG001 | Use of `eval()` | CRITICAL |
-| VG002 | Use of `exec()` | CRITICAL |
-| VG003 | Hardcoded Secret | HIGH |
-| VG004 | Insecure Randomness | MEDIUM |
-| VG005 | Dangerous Subprocess Usage (`shell=True`) | HIGH |
-| VG006 | Pickle Deserialization | HIGH |
-| VG007 | Assert Used for Security Check | MEDIUM |
-| VG008 | Weak Hash Algorithm | HIGH |
-| VG009 | OS Shell Execution | HIGH |
-| VG010 | Unsafe YAML Deserialization | HIGH |
-| VG011 | TLS Verification Disabled | HIGH |
-| VG012 | Debug Mode Enabled | MEDIUM |
-| VG013 | Dynamic SQL Query Construction | HIGH |
-| VG014 | Path Traversal (dynamic file paths) | HIGH |
-| VG015 | Server-Side Request Forgery (SSRF) | HIGH |
-| VG016 | Unsafe HTML / XSS Output | HIGH |
-| VG017 | XPath Injection | HIGH |
-| VG018 | Open Redirect | MEDIUM |
-| VG019 | Unvalidated User Input to Sensitive Sink | MEDIUM |
+### Core Security Rules
 
-The security analyzer now covers unsafe dynamic execution, secrets, weak cryptography, shell execution, unsafe deserialization, TLS bypasses, debug server configuration, and SQL query construction risks.
+| Rule ID | Title | CWE | Severity |
+|---------|-------|-----|----------|
+| VG001 | Use of `eval()` | CWE-95 | CRITICAL |
+| VG002 | Use of `exec()` | CWE-95 | CRITICAL |
+| VG003 | Hardcoded Secret | CWE-798 | HIGH |
+| VG004 | Insecure Randomness | CWE-338 | MEDIUM |
+| VG005 | Dangerous Subprocess (`shell=True`) | CWE-78 | HIGH |
+| VG006 | Pickle Deserialization | CWE-502 | HIGH |
+| VG007 | Assert Used for Validation | CWE-617 | MEDIUM |
+| VG008 | Weak Hash Algorithm | CWE-327 | HIGH |
+| VG009 | OS Shell Execution | CWE-78 | HIGH |
+| VG010 | Unsafe YAML Deserialization | CWE-502 | HIGH |
+| VG011 | TLS Verification Disabled | CWE-295 | HIGH |
+| VG012 | Debug Mode Enabled | CWE-489 | MEDIUM |
+| VG013 | Dynamic SQL Query | CWE-89 | HIGH |
+| VG014 | Path Traversal | CWE-22 | HIGH |
+| VG015 | SSRF — Unvalidated URL | CWE-918 | HIGH |
+| VG016 | Unsafe HTML / XSS Output | CWE-79 | HIGH |
+| VG017 | XPath Injection | CWE-643 | HIGH |
+| VG018 | Open Redirect | CWE-601 | MEDIUM |
+| VG019 | Unvalidated Input to Sensitive Sink | CWE-20 | MEDIUM |
+| VG020 | Weak Crypto Key Size | CWE-326 | HIGH |
+| VG021 | Log Injection | CWE-117 | MEDIUM |
+| VG022 | HTTP Header Injection | CWE-113 | HIGH |
+| VG023 | Weak RNG Seed | CWE-329 | MEDIUM |
+| VG024 | ReDoS — Catastrophic Backtracking | CWE-400 | MEDIUM |
+| VG025 | URL Validation Bypass (suffix attack) | CWE-20 | HIGH |
+| VG026 | XXE Vulnerability | CWE-611 | HIGH |
+| VG027 | Insecure Cookie (no Secure/HttpOnly) | CWE-614 | HIGH |
+| VG028 | CSRF — Missing Protection | CWE-352 | MEDIUM |
+| VG029 | Insecure Tempfile (`mktemp`) | CWE-377 | HIGH |
+| VG030 | Cleartext Credentials in Storage | CWE-312 | MEDIUM |
+| VG031 | Unnecessary Privileges (`setuid(0)`) | CWE-250 | HIGH |
+| VG032 | None Dereference | CWE-476 | LOW |
+| VG033 | Unrestricted File Upload | CWE-434 | MEDIUM |
+| VG034 | Weak Password Storage | CWE-522 | HIGH |
+| VG035 | Sensitive Data in Logs | CWE-200 | MEDIUM |
+| VG036 | XML Injection | CWE-91 | MEDIUM |
+| VG037 | Improper Output Encoding | CWE-116 | MEDIUM |
+| VG038 | JWT Signature Not Verified | CWE-347 | HIGH |
+| VG039 | Insecure File Permissions (`chmod 0o777`) | CWE-732 | HIGH |
+| VG040 | Divide by Zero (user-controlled) | CWE-369 | LOW |
 
-Security findings also include optional professional metadata for reports and editor integrations: confidence, risk score, CWE, OWASP category, impact, and remediation guidance.
+All findings include metadata: CWE, OWASP category, confidence, risk score, impact, and remediation suggestion.
+
+To suppress an intentional finding:
 
 To suppress an intentional finding, add an inline or previous-line ignore comment:
 
@@ -349,6 +399,35 @@ methods/threats note:
 
 ```bash
 python -m experiments.run_study --out-dir results --runs 20 --energy-backend auto
+```
+
+**Cross-dataset detection study (RQ5.7/RQ7).** Evaluates VibeGuard and Bandit on
+SALLM (100 samples), SecurityEval (121 samples), and EvalPlus benign baseline.
+Computes detection rate, false alarm rate, single-label F1, and family-grouped F1:
+
+```bash
+python -m experiments.run_detection_study --out-dir results/detection_study
+```
+
+**LLM repair study (RQ4-B).** Runs gpt-4o-mini whole-file repair on insecure
+samples and evaluates oracle pass rates before and after:
+
+```bash
+python -m experiments.run_llm_repair --corpus data/corpus/cweval_multi.jsonl \
+    --cweval-root dataset/cweval --out-dir results/llm_repair
+```
+
+**One-command reproduce (all steps):**
+
+```bash
+# Offline smoke (no API keys, synthetic corpus, 5 samples):
+./scripts/reproduce_study.sh --synthetic --limit 5
+
+# Full paper pipeline (requires OPENAI_API_KEY and CWEval dataset):
+./scripts/reproduce_study.sh --skip-generate --with-baselines --with-detection
+
+# Include LLM repair and secure@k metrics:
+./scripts/reproduce_study.sh --skip-generate --with-detection --with-llm-repair --with-secure-at-k
 ```
 
 ---
