@@ -28,4 +28,11 @@ class OpenAIProvider(Provider):
             temperature=self.temperature,
             messages=[{"role": "user", "content": prompt}],
         )
+        self._last_response_metadata = {
+            "response_id": response.id,
+            "resolved_model": response.model,
+            "created": response.created,
+            "system_fingerprint": response.system_fingerprint,
+            "usage": response.usage.model_dump() if response.usage else None,
+        }
         return response.choices[0].message.content or ""

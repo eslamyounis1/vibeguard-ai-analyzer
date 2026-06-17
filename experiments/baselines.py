@@ -13,9 +13,11 @@ module degrades gracefully when a tool is not installed.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -79,8 +81,30 @@ def _write_temp(code: str) -> Path:
     return Path(tmp.name)
 
 
-def _run(cmd: List[str], timeout: int = 60) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+def tool_executable(name: str) -> Optional[str]:
+    """Resolve a CLI from PATH or beside the active Python interpreter."""
+    executable = shutil.which(name)
+    if executable:
+        return executable
+    sibling = Path(sys.executable).parent / name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+    return None
+
+
+def _run(
+    cmd: List[str],
+    timeout: int = 60,
+    env: Optional[dict] = None,
+) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        env=env,
+    )
 
 
 # ── Adapters ──────────────────────────────────────────────────────────────────
@@ -103,12 +127,13 @@ def run_vibeguard(code: str) -> ToolRun:
 
 
 def run_bandit(code: str) -> ToolRun:
-    if shutil.which("bandit") is None:
+    executable = tool_executable("bandit")
+    if executable is None:
         return ToolRun("bandit", ok=False, error="bandit not installed")
     path = _write_temp(code)
     start = time.perf_counter()
     try:
-        proc = _run(["bandit", "-f", "json", "-q", str(path)])
+        proc = _run([executable, "-f", "json", "-q", str(path)])
         data = json.loads(proc.stdout or "{}")
         findings = []
         for r in data.get("results", []):
@@ -117,12 +142,21 @@ def run_bandit(code: str) -> ToolRun:
                 ToolFinding(
                     tool="bandit",
                     rule=r.get("test_id", "?"),
-                    cwe=f"CWE-{cwe_id}" if cwe_id else None,
+                    cwe=f"CWE-{int(cwe_id)}" if cwe_id else None,
                     line=r.get("line_number"),
                     severity=r.get("issue_severity"),
                 )
             )
-        return ToolRun("bandit", ok=True, findings=findings, elapsed_ms=(time.perf_counter() - start) * 1000)
+        error = None
+        if proc.returncode not in (0, 1):
+            error = (proc.stderr or "bandit failed").strip()[:1000]
+        return ToolRun(
+            "bandit",
+            ok=error is None,
+            findings=findings,
+            elapsed_ms=(time.perf_counter() - start) * 1000,
+            error=error,
+        )
     except Exception as exc:
         return ToolRun("bandit", ok=False, error=str(exc))
     finally:
@@ -130,32 +164,70 @@ def run_bandit(code: str) -> ToolRun:
 
 
 def run_semgrep(code: str) -> ToolRun:
-    if shutil.which("semgrep") is None:
+    executable = tool_executable("semgrep")
+    if executable is None:
         return ToolRun("semgrep", ok=False, error="semgrep not installed")
     path = _write_temp(code)
     start = time.perf_counter()
     try:
-        proc = _run(["semgrep", "--json", "--quiet", "--config", "p/python", str(path)], timeout=120)
+        config = os.environ.get("VIBEGUARD_SEMGREP_CONFIG")
+        if not config:
+            local_rules = Path("dataset/semgrep-rules/python")
+            config = str(local_rules) if local_rules.exists() else "p/python"
+        env = os.environ.copy()
+        env["HOME"] = os.environ.get(
+            "VIBEGUARD_SEMGREP_HOME",
+            str(Path(tempfile.gettempdir()) / "vibeguard-semgrep-home"),
+        )
+        env.setdefault("SEMGREP_SEND_METRICS", "off")
+        env.setdefault("SEMGREP_ENABLE_VERSION_CHECK", "0")
+        try:
+            import certifi
+
+            env.setdefault("SSL_CERT_FILE", certifi.where())
+        except ImportError:
+            pass
+        proc = _run(
+            [
+                executable,
+                "--json",
+                "--quiet",
+                "--metrics=off",
+                "--disable-version-check",
+                "--config",
+                config,
+                str(path),
+            ],
+            timeout=180,
+            env=env,
+        )
         data = json.loads(proc.stdout or "{}")
         findings = []
         for r in data.get("results", []):
             meta = (r.get("extra") or {}).get("metadata") or {}
             cwe_field = meta.get("cwe")
-            cwe = None
-            if isinstance(cwe_field, list) and cwe_field:
-                cwe = _norm_cwe(cwe_field[0])
-            elif isinstance(cwe_field, str):
-                cwe = _norm_cwe(cwe_field)
-            findings.append(
-                ToolFinding(
-                    tool="semgrep",
-                    rule=r.get("check_id", "?"),
-                    cwe=cwe,
-                    line=(r.get("start") or {}).get("line"),
-                    severity=(r.get("extra") or {}).get("severity"),
+            values = cwe_field if isinstance(cwe_field, list) else [cwe_field]
+            cwes = {cwe for value in values if value for cwe in [_norm_cwe(str(value))] if cwe}
+            for cwe in cwes or {None}:
+                findings.append(
+                    ToolFinding(
+                        tool="semgrep",
+                        rule=r.get("check_id", "?"),
+                        cwe=cwe,
+                        line=(r.get("start") or {}).get("line"),
+                        severity=(r.get("extra") or {}).get("severity"),
+                    )
                 )
-            )
-        return ToolRun("semgrep", ok=True, findings=findings, elapsed_ms=(time.perf_counter() - start) * 1000)
+        error = None
+        if proc.returncode not in (0, 1):
+            error = (proc.stderr or "semgrep failed").strip()[:1000]
+        return ToolRun(
+            "semgrep",
+            ok=error is None,
+            findings=findings,
+            elapsed_ms=(time.perf_counter() - start) * 1000,
+            error=error,
+        )
     except Exception as exc:
         return ToolRun("semgrep", ok=False, error=str(exc))
     finally:
@@ -163,12 +235,13 @@ def run_semgrep(code: str) -> ToolRun:
 
 
 def run_ruff(code: str) -> ToolRun:
-    if shutil.which("ruff") is None:
+    executable = tool_executable("ruff")
+    if executable is None:
         return ToolRun("ruff", ok=False, error="ruff not installed")
     path = _write_temp(code)
     start = time.perf_counter()
     try:
-        proc = _run(["ruff", "check", "--output-format", "json", str(path)])
+        proc = _run([executable, "check", "--output-format", "json", str(path)])
         data = json.loads(proc.stdout or "[]")
         findings = [
             ToolFinding(tool="ruff", rule=item.get("code") or "?", line=(item.get("location") or {}).get("row"), category="quality")
@@ -182,12 +255,13 @@ def run_ruff(code: str) -> ToolRun:
 
 
 def run_pylint(code: str) -> ToolRun:
-    if shutil.which("pylint") is None:
+    executable = tool_executable("pylint")
+    if executable is None:
         return ToolRun("pylint", ok=False, error="pylint not installed")
     path = _write_temp(code)
     start = time.perf_counter()
     try:
-        proc = _run(["pylint", "--output-format=json", str(path)])
+        proc = _run([executable, "--output-format=json", str(path)])
         data = json.loads(proc.stdout or "[]")
         findings = [
             ToolFinding(tool="pylint", rule=item.get("symbol") or item.get("message-id") or "?", line=item.get("line"), category="quality")
@@ -201,12 +275,13 @@ def run_pylint(code: str) -> ToolRun:
 
 
 def run_radon(code: str) -> ToolRun:
-    if shutil.which("radon") is None:
+    executable = tool_executable("radon")
+    if executable is None:
         return ToolRun("radon", ok=False, error="radon not installed")
     path = _write_temp(code)
     start = time.perf_counter()
     try:
-        proc = _run(["radon", "cc", "-j", str(path)])
+        proc = _run([executable, "cc", "-j", str(path)])
         data = json.loads(proc.stdout or "{}")
         findings = []
         for blocks in data.values():
@@ -242,7 +317,7 @@ SECURITY_TOOLS = ("vibeguard", "bandit", "semgrep")
 def available_tools() -> List[str]:
     out = ["vibeguard"]
     for tool in _ADAPTERS:
-        if tool != "vibeguard" and shutil.which(tool) is not None:
+        if tool != "vibeguard" and tool_executable(tool) is not None:
             out.append(tool)
     return out
 

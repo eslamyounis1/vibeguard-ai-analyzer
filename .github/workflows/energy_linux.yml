@@ -1,0 +1,82 @@
+name: RQ3 Energy Study (Linux / codecarbon)
+
+# Run the RQ3 energy study on a Linux runner using the codecarbon backend.
+# Linux runners (ubuntu-latest) do not expose Intel RAPL through the GitHub
+# Actions VM — RAPL requires bare-metal. We use codecarbon, which estimates
+# energy from CPU utilisation + hardware power tables, as a more credible
+# alternative to the macOS linear-proxy.
+#
+# For RAPL-level accuracy, rent a Hetzner CX22 bare-metal VPS (≈€4/mo) and
+# run scripts/run_energy_powermetrics.sh with the --energy-backend rapl flag.
+#
+# Trigger manually: Actions → RQ3 Energy Study → Run workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Measured runs per sample (default: 10)"
+        required: false
+        default: "10"
+      warmup:
+        description: "Warm-up runs to discard (default: 2)"
+        required: false
+        default: "2"
+
+jobs:
+  energy-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]" --quiet
+          pip install codecarbon --quiet
+
+      - name: Check codecarbon availability
+        run: |
+          python -c "from codecarbon import EmissionsTracker; print('codecarbon OK')"
+
+      - name: Run RQ3 energy study (codecarbon backend)
+        run: |
+          python -m experiments.run_energy \
+            --corpus data/corpus/synthetic_perf.jsonl \
+            --out-dir results/energy_linux_codecarbon \
+            --energy-backend codecarbon \
+            --runs ${{ github.event.inputs.runs || '10' }} \
+            --warmup ${{ github.event.inputs.warmup || '2' }} \
+            --no-tests
+
+      - name: Print summary
+        run: |
+          python -c "
+          import json
+          s = json.load(open('results/energy_linux_codecarbon/summary.json'))
+          print(f'Backend : {s[\"energy_backend_used\"]}')
+          print(f'Measured: {s[\"n_measured\"]}/{s[\"n_corpus\"]} samples')
+          for c in s['correlation']:
+              mw = c.get('mean_with_perf')
+              mc = c.get('mean_without_perf')
+              if mw and mc:
+                  print(f'{c[\"metric\"]}: smelly={mw:.4f}, clean={mc:.4f}, '
+                        f'ratio={mw/mc:.1f}x, delta={c[\"cliffs_delta\"]}, p={c[\"p_value\"]:.2e}')
+              else:
+                  print(f'{c[\"metric\"]}: n_smelly={c[\"n_with_perf_finding\"]}, '
+                        f'n_clean={c[\"n_without_perf_finding\"]}')
+          "
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: energy-linux-codecarbon-results
+          path: results/energy_linux_codecarbon/
+          retention-days: 30

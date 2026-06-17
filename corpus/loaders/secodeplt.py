@@ -34,7 +34,7 @@ def _normalize_cwe(raw: Optional[str]) -> Optional[str]:
     if not raw:
         return None
     digits = raw.upper().replace("CWE-", "").replace("CWE_", "").strip()
-    return f"CWE-{digits}" if digits else None
+    return f"CWE-{int(digits)}" if digits.isdigit() else None
 
 
 def _to_sample(record: dict, split: str) -> CorpusSample:

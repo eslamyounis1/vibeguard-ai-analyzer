@@ -19,6 +19,8 @@ import tempfile
 from sandbox.energy.base import EnergyMeter, EnergySample
 
 _POWER_RE = re.compile(r"CPU Power:\s*([\d.]+)\s*mW", re.IGNORECASE)
+# macOS system binary — absolute path so it works even after os.environ.clear() wipes PATH.
+_POWERMETRICS_BIN = shutil.which("powermetrics") or "/usr/bin/powermetrics"
 
 
 class PowermetricsMeter(EnergyMeter):
@@ -28,7 +30,7 @@ class PowermetricsMeter(EnergyMeter):
     def available(cls) -> bool:
         return (
             platform.system() == "Darwin"
-            and shutil.which("powermetrics") is not None
+            and os.path.isfile(_POWERMETRICS_BIN)
             and os.environ.get("VIBEGUARD_POWERMETRICS") == "1"
         )
 
@@ -37,7 +39,7 @@ class PowermetricsMeter(EnergyMeter):
         self._tmp.close()
         try:
             self._proc = subprocess.Popen(
-                ["powermetrics", "--samplers", "cpu_power", "-i", "100", "-o", self._tmp.name],
+                [_POWERMETRICS_BIN, "--samplers", "cpu_power", "-i", "100", "-o", self._tmp.name],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )

@@ -20,6 +20,7 @@ Two subsets differ in how their tests invoke the solution:
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -51,6 +52,17 @@ def _read_parquet(subset_dir: Path):
 def _entry_point_from_code(code: str) -> Optional[str]:
     match = _DEF_RE.search(code or "")
     return match.group(1) if match else None
+
+
+def _read_jsonl(path: Path, limit: Optional[int]) -> List[dict]:
+    rows = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                rows.append(json.loads(line))
+                if limit is not None and len(rows) >= limit:
+                    break
+    return rows
 
 
 def _humaneval_sample(row: dict) -> CorpusSample:
@@ -118,12 +130,30 @@ def load_evalplus(
     root = Path(root)
     builders = {"humanevalplus": _humaneval_sample, "mbppplus": _mbpp_sample}
 
+    unknown = set(subsets) - set(builders)
+    if unknown:
+        raise ValueError(
+            f"Unknown EvalPlus subset {sorted(unknown)[0]!r}; "
+            f"expected one of {sorted(builders)}"
+        )
+
+    if root.is_file():
+        if tuple(subsets) != ("humanevalplus",):
+            raise ValueError(
+                "An official HumanEvalPlus JSONL file only supports "
+                "subsets=('humanevalplus',)"
+            )
+        return [_humaneval_sample(row) for row in _read_jsonl(root, limit)]
+
+    official_jsonl = next(iter(sorted(root.glob("HumanEvalPlus*.jsonl"))), None)
+
     samples: List[CorpusSample] = []
     for subset in subsets:
-        if subset not in builders:
-            raise ValueError(
-                f"Unknown EvalPlus subset {subset!r}; expected one of {sorted(builders)}"
+        if subset == "humanevalplus" and official_jsonl is not None:
+            samples.extend(
+                _humaneval_sample(row) for row in _read_jsonl(official_jsonl, limit)
             )
+            continue
         subset_dir = root / subset
         if not subset_dir.is_dir():
             raise FileNotFoundError(f"EvalPlus subset not found at {subset_dir}")

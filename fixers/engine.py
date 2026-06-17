@@ -18,6 +18,7 @@ from typing import List, Optional
 from security.core.scanner import Scanner
 from fixers.base import Edit, apply_edits, compute_line_offsets
 from fixers.registry import FIXERS_BY_RULE
+from fixers.safety import format_introduced_findings, introduced_findings
 
 
 @dataclass
@@ -119,15 +120,19 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
     fixed_code = apply_edits(code, edits)
 
     after = scanner.scan_source(fixed_code, filename)
-    safe = after.ok and len(after.findings) <= len(before.findings)
+    introduced = introduced_findings(before.findings, after.findings) if after.ok else {}
+    safe = after.ok and not introduced
     note = None
     if not after.ok:
         note = "Fix produced code that does not parse; reverting."
         fixed_code = code
         applied = []
         safe = False
-    elif len(after.findings) > len(before.findings):
-        note = "Fix introduced new findings; reverting."
+    elif introduced:
+        note = (
+            "Fix introduced new findings "
+            f"({format_introduced_findings(introduced)}); reverting."
+        )
         fixed_code = code
         applied = []
         safe = False

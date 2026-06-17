@@ -137,10 +137,10 @@ class TestXxeFixer:
 
 
 class TestPathTraversalFixer:
-    def test_wraps_variable_path(self):
+    def test_declines_variable_path_without_trust_root(self):
         code = "with open(user_path, 'r') as f: pass"
         result = _apply_fixer(PathTraversalFixer(), code, "path_traversal")
-        assert "normpath" in result
+        assert result == code
 
     def test_no_fix_for_constant_path(self):
         code = "with open('/etc/hosts', 'r') as f: pass"

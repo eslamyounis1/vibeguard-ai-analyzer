@@ -10,6 +10,7 @@ from experiments.metrics import (
     vulnerable_at_k,
     compute_metrics_for_group,
     compute_metrics_per_model,
+    compute_task_level_at_k,
 )
 
 
@@ -31,14 +32,15 @@ class TestAtK:
             assert v >= prev
             prev = v
 
-    def test_n_less_than_k_returns_proportion(self):
-        # When n < k, fall back to c/n
-        assert _at_k(4, 2, 10) == pytest.approx(0.5)
+    def test_n_less_than_k_is_undefined(self):
+        with pytest.raises(ValueError):
+            _at_k(4, 2, 10)
 
     def test_k_equals_n(self):
-        # Drawing all samples — probability is c/n is not guaranteed 1 unless c==n
-        result = _at_k(5, 3, 5)
-        assert 0.0 <= result <= 1.0
+        assert _at_k(5, 3, 5) == 1.0
+
+    def test_successes_exceed_remaining_failures(self):
+        assert _at_k(10, 8, 5) == 1.0
 
 
 class TestVulnerableAtK:
@@ -111,3 +113,22 @@ class TestComputeMetricsPerModel:
         assert "gpt-4o" in sources
         assert "gpt-4o-mini" in sources
         assert len(result) == 2
+
+
+class TestTaskLevelAtK:
+    def test_macro_averages_repeated_samples_by_task(self):
+        rows = [
+            {"task_id": "a", "secure": True},
+            {"task_id": "a", "secure": False},
+            {"task_id": "b", "secure": False},
+            {"task_id": "b", "secure": False},
+        ]
+        result = compute_task_level_at_k(rows, success_key="secure", k_values=(1, 2))
+        assert result["secure@1"] == pytest.approx(0.25)
+        assert result["secure@2"] == pytest.approx(0.5)
+
+    def test_skips_k_without_enough_repeats(self):
+        rows = [{"task_id": "a", "secure": True}]
+        result = compute_task_level_at_k(rows, success_key="secure", k_values=(1, 3))
+        assert "secure@1" in result
+        assert "secure@3" not in result

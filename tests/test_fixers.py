@@ -48,6 +48,13 @@ class TestYamlFixer:
         res = fix_source("import yaml\nyaml.load(raw)\n")
         assert "yaml.safe_load(raw)" in res.fixed_code
 
+    def test_yaml_loader_keyword_is_removed(self):
+        res = fix_source(
+            "import yaml\nfrom yaml import Loader\nyaml.load(raw, Loader=Loader)\n"
+        )
+        assert "yaml.safe_load(raw)" in res.fixed_code
+        assert "Loader=Loader" not in res.fixed_code
+
     def test_safe_load_untouched(self):
         res = fix_source("import yaml\nyaml.safe_load(raw)\n")
         assert not res.changed
@@ -95,6 +102,7 @@ class TestEngineSafety:
         ids = fixable_rule_ids()
         assert {"weak_hash_algorithm", "unsafe_yaml_load",
                 "tls_verification_disabled", "assert_used_for_validation"} <= ids
+        assert "path_traversal" not in ids
 
 
 # ---------------------------------------------------------------------------

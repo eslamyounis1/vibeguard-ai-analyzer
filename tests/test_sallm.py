@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(
 class TestCweParsing:
     def test_parses_padded_and_long_cwes(self):
         assert _cwe_from_id("Matching_Author_A_cwe502_0.py") == "CWE-502"
-        assert _cwe_from_id("Tainted_CodeQL_T_cwe020_3.py") == "CWE-020"
+        assert _cwe_from_id("Tainted_CodeQL_T_cwe020_3.py") == "CWE-20"
         assert _cwe_from_id("Assertion_X_cwe1204_0.py") == "CWE-1204"
         assert _cwe_from_id("no_cwe_here.py") is None
 

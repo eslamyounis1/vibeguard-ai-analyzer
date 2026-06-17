@@ -476,11 +476,16 @@ class TestVG020WeakCryptoKey:
         findings = WeakCryptoKeyRule().check(tree, "test.py", lines)
         assert len(findings) == 1
 
-    def test_flags_rsa_2048(self):
-        # 2048-bit is now below the 3072-bit threshold
+    def test_no_flag_rsa_2048_by_default(self):
         code = "from Crypto.PublicKey import RSA\nkey = RSA.generate(2048)"
         tree, lines = _parse(code)
         findings = WeakCryptoKeyRule().check(tree, "test.py", lines)
+        assert findings == []
+
+    def test_strict_policy_flags_rsa_2048(self):
+        code = "from Crypto.PublicKey import RSA\nkey = RSA.generate(2048)"
+        tree, lines = _parse(code)
+        findings = WeakCryptoKeyRule(min_key_bits=3072).check(tree, "test.py", lines)
         assert len(findings) == 1
         assert "3072" in findings[0].message
 

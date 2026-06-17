@@ -16,6 +16,9 @@ class SsrfRule(SecurityRule):
     description = "HTTP client calls with attacker-controlled URLs can reach internal services."
     severity = Severity.HIGH
 
+    def __init__(self, enable_taint: bool = True) -> None:
+        self.enable_taint = enable_taint
+
     def check(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
         # Primary pattern-based check
@@ -43,6 +46,8 @@ class SsrfRule(SecurityRule):
         # Secondary taint-lite check — finds SSRF paths missed by primary pattern
         # (e.g. URL assembled via intermediate variable or dict access)
         try:
+            if not self.enable_taint:
+                return findings
             from security.taint.tracer import trace_taint
             taint_paths = trace_taint("\n".join(source_lines), sink_categories=["ssrf"])
             for path in taint_paths:

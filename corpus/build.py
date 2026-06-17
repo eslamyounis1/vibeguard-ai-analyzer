@@ -26,6 +26,7 @@ from corpus.loaders import (
     load_humaneval,
     load_mbpp,
     load_sallm,
+    load_securityeval,
     load_secodeplt,
     load_security_benchmark,
 )
@@ -65,6 +66,8 @@ def _load_dataset(
     if name == "sallm":
         path = sallm_path or "dataset/sallm/dataset.jsonl"
         return load_sallm(path=path, limit=limit)
+    if name == "securityeval":
+        return load_securityeval(limit=limit)
     if name == "secodeplt":
         root = secodeplt_path or "dataset/secodeplt"
         return load_secodeplt(root=root, limit=limit)
@@ -98,6 +101,8 @@ def build_corpus(
     limit,
     cache_dir,
     out,
+    samples_per_task: int = 1,
+    temperature: float = 0.2,
     cweval_path: Optional[str] = None,
     evalplus_path: Optional[str] = None,
     sallm_path: Optional[str] = None,
@@ -116,27 +121,52 @@ def build_corpus(
 
     for spec in generate or []:
         provider_name, model = _parse_provider_spec(spec)
-        provider = get_provider(provider_name, model=model, cache_dir=cache_dir)
+        provider = get_provider(
+            provider_name,
+            model=model,
+            cache_dir=cache_dir,
+            temperature=temperature,
+        )
         for task in task_samples:
-            code = provider.generate(_build_prompt(task))
-            meta = dict(task.metadata)
-            meta["generated_for"] = task.id
-            meta["provider"] = f"{provider.name}:{provider.model}"
-            samples.append(
-                CorpusSample(
-                    id=f"{task.task_id}::{provider.name}:{provider.model}",
-                    task_id=task.task_id,
-                    source=f"{provider.name}:{provider.model}",
-                    prompt=task.prompt,
-                    code=code,
-                    reference_solution=task.reference_solution,
-                    tests=task.tests,
-                    entry_point=task.entry_point,
-                    expected_security_labels=list(task.expected_security_labels),
-                    tags=["ai-generated"] + [t for t in task.tags if t != "reference"],
-                    metadata=meta,
+            generation_prompt = _build_prompt(task)
+            for sample_index in range(samples_per_task):
+                print(
+                    f"Generating {provider_name}:{model} {task.task_id} "
+                    f"sample {sample_index + 1}/{samples_per_task}",
+                    flush=True,
                 )
-            )
+                generation = provider.generate_record(
+                    generation_prompt,
+                    cache_variant=f"sample-{sample_index}",
+                )
+                meta = dict(task.metadata)
+                meta.update({
+                    "generated_for": task.id,
+                    "provider": f"{provider.name}:{provider.model}",
+                    "sample_index": sample_index,
+                    "generation": {
+                        k: v for k, v in generation.items()
+                        if k not in {"prompt", "raw", "code"}
+                    },
+                })
+                samples.append(
+                    CorpusSample(
+                        id=(
+                            f"{task.task_id}::{provider.name}:{provider.model}"
+                            f"::sample-{sample_index}"
+                        ),
+                        task_id=task.task_id,
+                        source=f"{provider.name}:{provider.model}",
+                        prompt=task.prompt,
+                        code=generation["code"],
+                        reference_solution=task.reference_solution,
+                        tests=task.tests,
+                        entry_point=task.entry_point,
+                        expected_security_labels=list(task.expected_security_labels),
+                        tags=["ai-generated"] + [t for t in task.tags if t != "reference"],
+                        metadata=meta,
+                    )
+                )
 
     return write_corpus(samples, out)
 
@@ -147,7 +177,7 @@ def main() -> None:
         "--datasets", nargs="+", default=["security"],
         help=(
             "Datasets to load: security, humaneval, mbpp, cweval, cweval-synthetic, "
-            "evalplus, sallm, secodeplt."
+            "evalplus, sallm, securityeval, secodeplt."
         ),
     )
     parser.add_argument(
@@ -176,8 +206,23 @@ def main() -> None:
         help="Path to SeCodePLT root (default: dataset/secodeplt).",
     )
     parser.add_argument("--cache-dir", default="data/cache", help="LLM response cache directory.")
+    parser.add_argument(
+        "--samples-per-task",
+        type=int,
+        default=1,
+        help="Independent generations per model-task pair (default: 1).",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.2,
+        help="Sampling temperature for generated solutions (default: 0.2).",
+    )
     parser.add_argument("--out", default="data/corpus/corpus.jsonl", help="Output JSONL path.")
     args = parser.parse_args()
+
+    if args.samples_per_task < 1:
+        parser.error("--samples-per-task must be at least 1")
 
     count = build_corpus(
         datasets=args.datasets,
@@ -185,6 +230,8 @@ def main() -> None:
         limit=args.limit,
         cache_dir=args.cache_dir,
         out=args.out,
+        samples_per_task=args.samples_per_task,
+        temperature=args.temperature,
         cweval_path=args.cweval_path,
         evalplus_path=args.evalplus_path,
         sallm_path=args.sallm_path,
