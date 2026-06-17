@@ -13,6 +13,7 @@ const SEVERITY_MAP: Record<Severity, vscode.DiagnosticSeverity> = {
 
 export class VibeGuardDiagnostics {
   private readonly collection: vscode.DiagnosticCollection;
+  private readonly _findings: Map<string, Finding[]> = new Map();
 
   constructor() {
     this.collection = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
@@ -24,6 +25,11 @@ export class VibeGuardDiagnostics {
 
   clear(uri: vscode.Uri): void {
     this.collection.delete(uri);
+    this._findings.delete(uri.toString());
+  }
+
+  getFindingsAt(uri: vscode.Uri, line: number): Finding[] {
+    return (this._findings.get(uri.toString()) ?? []).filter((f) => f.line === line);
   }
 
   setFromAnalyze(uri: vscode.Uri, document: vscode.TextDocument, result: AnalyzeResponse): void {
@@ -43,6 +49,7 @@ export class VibeGuardDiagnostics {
       diagnostics.push(findingToDiagnostic(finding, document));
     }
 
+    this._findings.set(uri.toString(), result.findings);
     this.collection.set(uri, diagnostics);
   }
 }

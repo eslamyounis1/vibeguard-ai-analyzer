@@ -19,6 +19,10 @@ from fixers.fix_insecure_cookie import InsecureCookieFixer
 from fixers.fix_xxe import XxeFixer
 from fixers.fix_insecure_tmpfile import InsecureTmpFileFixer
 from fixers.fix_file_permissions import FilePermissionsFixer
+from fixers.fix_xss import XssFixer
+from fixers.fix_open_redirect import OpenRedirectFixer
+from fixers.fix_ssrf import SsrfFixer
+from fixers.fix_xpath_injection import XPathInjectionFixer
 
 _FIXERS: List[Fixer] = [
     WeakHashFixer(),
@@ -35,6 +39,10 @@ _FIXERS: List[Fixer] = [
     XxeFixer(),
     InsecureTmpFileFixer(),
     FilePermissionsFixer(),
+    XssFixer(),
+    OpenRedirectFixer(),
+    SsrfFixer(),
+    XPathInjectionFixer(),
 ]
 
 FIXERS_BY_RULE: Dict[str, List[Fixer]] = {}

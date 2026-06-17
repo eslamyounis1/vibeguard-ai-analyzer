@@ -58,6 +58,9 @@ SKIP_STUDY=0
 SKIP_ENERGY=1
 WITH_ENERGY=0
 WITH_BASELINES=0
+WITH_DETECTION=0
+WITH_LLM_REPAIR=0
+WITH_SECURE_AT_K=0
 FORCE=0
 INSTALL_EXTRAS=0
 
@@ -82,6 +85,9 @@ Study outputs:
   --energy-dir DIR    Energy output directory (default: results/energy)
   --with-baselines    Run experiments.run_baselines on merged AI corpus
   --baselines-dir DIR Baselines output (default: results/baselines_multi)
+  --with-detection    Run cross-dataset detection study (SALLM + SecurityEval + EvalPlus)
+  --with-llm-repair   Run LLM repair study (RQ4-B; requires OPENAI_API_KEY)
+  --with-secure-at-k  Run secure@k / vulnerable@k metrics (RQ6)
   --limit N           Limit task samples (smoke tests)
 
 Environment:
@@ -130,6 +136,9 @@ while [[ $# -gt 0 ]]; do
     --with-energy) WITH_ENERGY=1; SKIP_ENERGY=0; shift ;;
     --skip-energy) WITH_ENERGY=0; SKIP_ENERGY=1; shift ;;
     --with-baselines) WITH_BASELINES=1; shift ;;
+    --with-detection) WITH_DETECTION=1; shift ;;
+    --with-llm-repair) WITH_LLM_REPAIR=1; shift ;;
+    --with-secure-at-k) WITH_SECURE_AT_K=1; shift ;;
     --force) FORCE=1; shift ;;
     --install-extras) INSTALL_EXTRAS=1; shift ;;
     --out-dir) RESULTS_DIR="$2"; shift 2 ;;
@@ -340,6 +349,48 @@ if [[ "${WITH_BASELINES}" -eq 1 ]]; then
     --out-dir "${BASELINES_DIR}"
 fi
 
+# ---------------------------------------------------------------------------
+# 8. Cross-dataset detection study (SALLM + SecurityEval + EvalPlus; RQ5.7/RQ7)
+# ---------------------------------------------------------------------------
+if [[ "${WITH_DETECTION}" -eq 1 ]]; then
+  DETECTION_DIR="${RESULTS_DIR%/*}/detection_study"
+  log "Running cross-dataset detection study → ${DETECTION_DIR}"
+  DETECTION_ARGS=(
+    -m experiments.run_detection_study
+    --out-dir "${DETECTION_DIR}"
+  )
+  if [[ -n "${LIMIT}" ]]; then
+    DETECTION_ARGS+=(--limit "${LIMIT}")
+  fi
+  "${PYTHON}" "${DETECTION_ARGS[@]}"
+fi
+
+# ---------------------------------------------------------------------------
+# 9. LLM repair study (RQ4-B; optional — requires OPENAI_API_KEY)
+# ---------------------------------------------------------------------------
+if [[ "${WITH_LLM_REPAIR}" -eq 1 ]]; then
+  if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+    die "--with-llm-repair requires OPENAI_API_KEY"
+  fi
+  REPAIR_DIR="${RESULTS_DIR%/*}/llm_repair"
+  log "Running LLM repair study → ${REPAIR_DIR}"
+  "${PYTHON}" -m experiments.run_llm_repair \
+    --corpus "${MULTI_CORPUS}" \
+    --cweval-root "${CWEVAL_ROOT%/benchmark/core/py}" \
+    --out-dir "${REPAIR_DIR}"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. Secure@k / Vulnerable@k (RQ6)
+# ---------------------------------------------------------------------------
+if [[ "${WITH_SECURE_AT_K}" -eq 1 ]]; then
+  SECUREATK_DIR="${RESULTS_DIR%/*}/secure_at_k"
+  log "Running secure@k / vulnerable@k → ${SECUREATK_DIR}"
+  "${PYTHON}" -m experiments.rq6_secure_at_k \
+    --corpus "${MULTI_CORPUS}" \
+    --out-dir "${SECUREATK_DIR}"
+fi
+
 log "Done."
 log "  Merged corpus: ${MULTI_CORPUS}"
 if [[ "${SKIP_STUDY}" -eq 0 ]]; then
@@ -350,4 +401,13 @@ if [[ "${WITH_ENERGY}" -eq 1 ]]; then
 fi
 if [[ "${WITH_BASELINES}" -eq 1 ]]; then
   log "  Baselines: ${BASELINES_DIR}/"
+fi
+if [[ "${WITH_DETECTION}" -eq 1 ]]; then
+  log "  Detection study: ${RESULTS_DIR%/*}/detection_study/"
+fi
+if [[ "${WITH_LLM_REPAIR}" -eq 1 ]]; then
+  log "  LLM repair: ${RESULTS_DIR%/*}/llm_repair/"
+fi
+if [[ "${WITH_SECURE_AT_K}" -eq 1 ]]; then
+  log "  Secure@k: ${RESULTS_DIR%/*}/secure_at_k/"
 fi

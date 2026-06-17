@@ -54,6 +54,16 @@
         "command": "vibeguard.checkHealth",
         "title": "VibeGuard: Check API Health",
         "icon": "$(heart)"
+      },
+      {
+        "command": "vibeguard.fix",
+        "title": "VibeGuard: Auto-Fix File",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "vibeguard.compare",
+        "title": "VibeGuard: Compare Before/After Fix",
+        "icon": "$(diff)"
       }
     ],
     "viewsContainers": {
@@ -91,6 +101,16 @@
           "command": "vibeguard.openChat",
           "when": "editorLangId == python",
           "group": "vibeguard@3"
+        },
+        {
+          "command": "vibeguard.fix",
+          "when": "editorLangId == python",
+          "group": "vibeguard@4"
+        },
+        {
+          "command": "vibeguard.compare",
+          "when": "editorLangId == python",
+          "group": "vibeguard@5"
         }
       ],
       "commandPalette": [
@@ -114,10 +134,35 @@
           "command": "vibeguard.openChat"
         },
         {
+          "command": "vibeguard.openChatPanel"
+        },
+        {
           "command": "vibeguard.checkHealth"
+        },
+        {
+          "command": "vibeguard.fix",
+          "when": "editorLangId == python"
+        },
+        {
+          "command": "vibeguard.compare",
+          "when": "editorLangId == python"
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "vibeguard.fix",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "editorLangId == python"
+      },
+      {
+        "command": "vibeguard.analyze",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorLangId == python"
+      }
+    ],
     "configuration": {
       "title": "VibeGuard",
       "properties": {

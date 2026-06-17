@@ -19,16 +19,26 @@ export function getChatHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
 </head>
 <body>
   <header>
-    <h1>VibeGuard Secure Code Chat</h1>
-    <p id="config-line">Rule-aware generation via orchestrator</p>
+    <div class="header-text">
+      <h1>VibeGuard Secure Code Chat</h1>
+      <p id="config-line">Rule-aware generation via orchestrator</p>
+    </div>
+    <button id="clear-btn" aria-label="Start a new chat session" title="New chat">New chat</button>
   </header>
-  <main id="messages" aria-live="polite"></main>
+  <main id="messages" role="log" aria-live="polite" aria-label="Chat messages">
+    <div id="empty-state">
+      <p class="empty-title">Ask for secure Python code</p>
+      <p class="empty-hint">Try: "hash a password with bcrypt" or "parameterised SQL user lookup"</p>
+      <p class="empty-hint">Use <kbd>Ctrl+Enter</kbd> to send.</p>
+    </div>
+  </main>
   <footer>
-    <textarea id="input" rows="3" placeholder="Ask for secure Python code…"></textarea>
+    <label for="input" class="sr-only">Chat message</label>
+    <textarea id="input" rows="3" placeholder="Ask for secure Python code…" aria-label="Chat message input"></textarea>
     <div class="actions">
-      <button id="send">Send</button>
-      <button id="insert" disabled>Insert into editor</button>
-      <button id="scan" disabled>Scan editor</button>
+      <button id="send" aria-label="Send message">Send</button>
+      <button id="insert" disabled aria-label="Insert generated code into the active editor">Insert into editor</button>
+      <button id="scan" disabled aria-label="Run VibeGuard security scan on the active editor">Scan editor</button>
     </div>
   </footer>
   <script nonce="${nonce}" src="${scriptUri}"></script>
@@ -66,6 +76,10 @@ export class ChatSession {
         break;
       case "scan":
         await vscode.commands.executeCommand("vibeguard.analyze");
+        break;
+      case "clear":
+        this._history = [];
+        this._lastCode = "";
         break;
     }
   }

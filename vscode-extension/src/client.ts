@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ChatMessage, ChatResponse, ProfileResponse, VibeGuardConfig } from "./types";
+import type { AnalyzeProfileResponse, AnalyzeResponse, ChatMessage, ChatResponse, CompareResponse, FixResponse, ProfileResponse, VibeGuardConfig } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -95,6 +95,27 @@ export function analyzeCode(config: VibeGuardConfig, code: string): Promise<Anal
 export function profileCode(config: VibeGuardConfig, code: string): Promise<ProfileResponse> {
   return postJson<ProfileResponse>(`${config.sandboxApiUrl}/profile`, code, {
     timeoutMs: config.requestTimeoutMs,
+  });
+}
+
+export function fixCode(config: VibeGuardConfig, code: string): Promise<FixResponse> {
+  return postJson<FixResponse>(`${config.orchestratorApiUrl}/fix`, code, {
+    timeoutMs: config.requestTimeoutMs,
+  });
+}
+
+export function compareCode(config: VibeGuardConfig, code: string): Promise<CompareResponse> {
+  return postJson<CompareResponse>(`${config.orchestratorApiUrl}/compare`, code, {
+    timeoutMs: config.requestTimeoutMs,
+  });
+}
+
+export function analyzeProfile(config: VibeGuardConfig, code: string): Promise<AnalyzeProfileResponse> {
+  return postJson<AnalyzeProfileResponse>(`${config.orchestratorApiUrl}/analyze-profile`, code, {
+    timeoutMs: config.requestTimeoutMs,
+    headers: {
+      "X-Min-Severity": config.minSeverity,
+    },
   });
 }
 
