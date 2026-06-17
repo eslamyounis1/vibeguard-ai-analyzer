@@ -52,7 +52,7 @@ def parse_task_filename(path: Path) -> Tuple[str, str, int]:
         raise ValueError(f"Not a CWEval task file: {path.name}")
     stem = match.group(1)
     _cwe, num, variant = stem.split("_")
-    return stem, f"CWE-{num}", int(variant)
+    return stem, f"CWE-{int(num)}", int(variant)
 
 
 def entry_point_from_prompt(prompt: str) -> Optional[str]:

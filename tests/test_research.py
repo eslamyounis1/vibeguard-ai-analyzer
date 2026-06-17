@@ -6,6 +6,7 @@ these tests only exercise functionality that works without them.
 """
 
 import ast
+import sys
 
 import pytest
 
@@ -142,6 +143,23 @@ class TestCorpus:
 # ── Baselines ────────────────────────────────────────────────────────────────
 
 class TestBaselines:
+    def test_tool_resolution_checks_active_python_environment(
+        self, tmp_path, monkeypatch
+    ):
+        from experiments import baselines
+
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        python = bin_dir / "python"
+        tool = bin_dir / "bandit"
+        python.write_text("", encoding="utf-8")
+        tool.write_text("#!/bin/sh\n", encoding="utf-8")
+        tool.chmod(0o755)
+        monkeypatch.setattr(sys, "executable", str(python))
+        monkeypatch.setattr(baselines.shutil, "which", lambda name: None)
+
+        assert baselines.tool_executable("bandit") == str(tool)
+
     def test_vibeguard_adapter_reports_cwe(self):
         from experiments.baselines import run_vibeguard
 

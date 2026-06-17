@@ -12,6 +12,7 @@ All estimators use the unbiased combinatorial formula from Chen et al. 2021
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from typing import Dict, List, Optional, Sequence
 
 
@@ -33,19 +34,19 @@ def _at_k(n: int, c: int, k: int) -> float:
     Returns:
         Probability in [0.0, 1.0].
     """
+    if n < 0 or c < 0 or c > n:
+        raise ValueError(f"Expected 0 <= c <= n, got n={n}, c={c}")
+    if k < 1:
+        raise ValueError(f"k must be positive, got {k}")
     if n < k:
-        # Not enough samples to draw k; return proportion
-        return c / n if n > 0 else 0.0
+        raise ValueError(f"pass@k is undefined when k > n (k={k}, n={n})")
     if c == 0:
         return 0.0
     if c >= n:
         return 1.0
-    # Compute 1 - C(n-c, k) / C(n, k)
-    numerator = math.prod(n - c - i for i in range(k) if (n - c - i) > 0)
-    denominator = math.prod(n - i for i in range(k))
-    if denominator == 0:
-        return 0.0
-    return max(0.0, 1.0 - numerator / denominator)
+    if n - c < k:
+        return 1.0
+    return 1.0 - math.comb(n - c, k) / math.comb(n, k)
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,8 @@ def compute_metrics_for_group(
 
     result: Dict[str, float] = {}
     for k in k_values:
+        if k > n:
+            continue
         result[f"vulnerable@{k}"] = round(vulnerable_at_k(n, c_vuln, k), 4)
         result[f"secure@{k}"] = round(secure_at_k(n, c_secure, k), 4)
         if fixed_key is not None:
@@ -124,6 +127,43 @@ def compute_metrics_for_group(
     result["c_secure"] = c_secure
     if fixed_key is not None:
         result["c_fixed"] = c_fixed
+    return result
+
+
+def compute_task_level_at_k(
+    samples: Sequence[dict],
+    *,
+    task_key: str = "task_id",
+    success_key: str,
+    k_values: Sequence[int] = (1, 3, 5),
+) -> Dict[str, float]:
+    """Compute pass@k per task and macro-average across tasks.
+
+    Each task must have repeated, exchangeable samples. Pooling different tasks
+    before applying the combinatorial estimator is invalid because it treats
+    samples from unrelated tasks as alternative attempts at the same problem.
+    """
+    by_task: Dict[str, list[dict]] = defaultdict(list)
+    for sample in samples:
+        by_task[str(sample[task_key])].append(sample)
+
+    result: Dict[str, float] = {"tasks": len(by_task)}
+    if not by_task:
+        return result
+
+    result["min_samples_per_task"] = min(len(group) for group in by_task.values())
+    result["max_samples_per_task"] = max(len(group) for group in by_task.values())
+    for k in k_values:
+        estimates = []
+        for group in by_task.values():
+            n = len(group)
+            if n < k:
+                continue
+            c = sum(1 for sample in group if bool(sample.get(success_key)))
+            estimates.append(_at_k(n, c, k))
+        if estimates:
+            result[f"{success_key}@{k}"] = round(sum(estimates) / len(estimates), 4)
+            result[f"{success_key}@{k}_tasks"] = len(estimates)
     return result
 
 

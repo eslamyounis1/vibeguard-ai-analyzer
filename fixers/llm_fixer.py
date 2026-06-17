@@ -10,9 +10,9 @@ Design
   coherently (e.g. a fix for CWE-79 may interact with a CWE-117 fix).
 - Whole-file replacement — the LLM returns the complete fixed source, avoiding the
   complexity of extracting precise byte-level edits from natural-language output.
-- Same verification contract as the deterministic engine: the fixed code must parse
-  and must not introduce *new* findings. If either check fails, the original code is
-  returned with safe=False so the caller can inspect the raw LLM output separately.
+- Static acceptance gate: the fixed code must parse and must not introduce *new*
+  findings. This gate does not establish functional or semantic safety; experiments
+  use benchmark oracles to measure those outcomes separately.
 - On-disk caching via the existing Provider infrastructure: repeated calls with the
   same (model, temperature, source + findings) do not re-bill the API.
 
@@ -37,6 +37,7 @@ from typing import List, Optional
 from security.core.scanner import Scanner
 from security.models.finding import Finding
 from fixers.engine import AppliedFix, FixResult
+from fixers.safety import format_introduced_findings, introduced_findings
 
 
 _CODE_FENCE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
@@ -115,7 +116,18 @@ def _call_llm(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"model": model, "prompt": prompt, "raw": raw}, ensure_ascii=False),
+        json.dumps({
+            "requested_model": model,
+            "resolved_model": response.model,
+            "response_id": response.id,
+            "created": response.created,
+            "system_fingerprint": response.system_fingerprint,
+            "usage": response.usage.model_dump() if response.usage else None,
+            "temperature": temperature,
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "prompt": prompt,
+            "raw": raw,
+        }, ensure_ascii=False),
         encoding="utf-8",
     )
     return raw
@@ -143,7 +155,8 @@ def llm_fix_source(
     Returns
     -------
     A :class:`FixResult` whose ``fixed_code`` is the LLM-repaired source when
-    ``safe`` is True, or the original source when the fix could not be verified.
+    ``safe`` is True, or the original source when the static gate rejects it.
+    ``safe`` does not imply functional or semantic correctness.
     """
     scanner = Scanner()
     before_result = scanner.scan_source(code, filename)
@@ -204,19 +217,24 @@ def llm_fix_source(
             note=f"LLM produced unparseable Python: {exc}",
         )
 
-    # Verify 2: fixed code must not introduce new findings
+    # Verify 2: fixed code must not introduce a new finding kind or instance.
     after_result = scanner.scan_source(fixed_code, filename)
-    safe = after_result.ok and len(after_result.findings) <= len(before_result.findings)
+    introduced = (
+        introduced_findings(before_result.findings, after_result.findings)
+        if after_result.ok
+        else {}
+    )
+    safe = after_result.ok and not introduced
 
     note: Optional[str] = None
     if not safe:
         if not after_result.ok:
             note = "Fixed code did not scan cleanly; reverting to original."
             fixed_code = code
-        else:
+        elif introduced:
             note = (
-                f"LLM fix introduced new findings "
-                f"({len(after_result.findings)} after vs {len(before_result.findings)} before); "
+                "LLM fix introduced new findings "
+                f"({format_introduced_findings(introduced)}); "
                 "reverting to original."
             )
             fixed_code = code

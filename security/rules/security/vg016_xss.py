@@ -23,6 +23,9 @@ class UnsafeHtmlOutputRule(SecurityRule):
     description = "Rendering unescaped user content in HTML enables cross-site scripting."
     severity = Severity.HIGH
 
+    def __init__(self, enable_taint: bool = True) -> None:
+        self.enable_taint = enable_taint
+
     def check(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
         primary_lines: set[int] = set()
@@ -82,6 +85,8 @@ class UnsafeHtmlOutputRule(SecurityRule):
                                 )
         # Secondary taint-lite check — catches XSS paths via intermediate variables
         try:
+            if not self.enable_taint:
+                return findings
             from security.taint.tracer import trace_taint
             taint_paths = trace_taint("\n".join(source_lines), sink_categories=["xss"])
             for path in taint_paths:

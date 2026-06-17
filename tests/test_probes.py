@@ -134,16 +134,9 @@ class TestSqlInjectionProbe:
         )
 
     def test_safe_snippet_not_confirmed(self):
-        # NOTE: The SQL probe checks that *both* calls execute without error.
-        # Parameterized queries also succeed on the injection payload (no crash,
-        # just returns no rows), so the probe returns CONFIRMED/UNKNOWN here.
-        # This is a known probe limitation — the test documents the actual behaviour.
         f = _finding(self.probe.rule_id, line=4)
         result = self.probe.probe(_SQL_SAFE, f)
-        # Either the probe fires (can't distinguish parameterized) or is unknown
-        assert result.status in (ProbeStatus.CONFIRMED, ProbeStatus.UNKNOWN), (
-            f"Expected confirmed or unknown (known probe limitation): {result.evidence}"
-        )
+        assert result.status == ProbeStatus.DISMISSED
 
 
 # ---------------------------------------------------------------------------
@@ -188,15 +181,9 @@ class TestCommandInjectionProbe:
         )
 
     def test_safe_snippet_not_confirmed(self):
-        # NOTE: The probe checks for "INJECTED" in stdout. With cmd.split() +
-        # no shell=True, 'echo safe; echo INJECTED' prints "safe; echo INJECTED"
-        # as echo arguments, so "INJECTED" still appears in output. The probe
-        # has this known FP; the test documents the actual behaviour.
         f = _finding(self.probe.rule_id, line=4)
         result = self.probe.probe(_CMD_SAFE, f)
-        assert result.status in (ProbeStatus.CONFIRMED, ProbeStatus.UNKNOWN), (
-            f"Expected confirmed or unknown (known probe limitation): {result.evidence}"
-        )
+        assert result.status != ProbeStatus.CONFIRMED
 
 
 # ---------------------------------------------------------------------------
