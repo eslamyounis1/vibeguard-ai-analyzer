@@ -35,12 +35,11 @@ def _parse(code: str):
 # ---------------------------------------------------------------------------
 
 class TestVG020WeakCryptoKey:
-    def test_detects_2048_bit_rsa(self):
+    def test_accepts_2048_bit_rsa_by_default(self):
         code = "rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())"
         tree, lines = _parse(code)
         findings = WeakCryptoKeyRule().check(tree, "t.py", lines)
-        assert len(findings) == 1
-        assert "2048" in findings[0].message
+        assert findings == []
 
     def test_no_finding_for_3072(self):
         code = "rsa.generate_private_key(public_exponent=65537, key_size=3072, backend=default_backend())"

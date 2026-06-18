@@ -46,57 +46,70 @@ from security.rules.security.vg039_insecure_file_permissions import InsecureFile
 from security.rules.security.vg040_divide_by_zero import DivideByZeroRule
 from security.rules.security.metadata import enrich_security_finding
 
-_DEFAULT_RULES: List[SecurityRule] = [
-    EvalUsageRule(),
-    ExecUsageRule(),
-    HardcodedSecretsRule(),
-    InsecureRandomRule(),
-    SubprocessShellRule(),
-    PickleRule(),
-    SecurityAssertRule(),
-    WeakHashRule(),
-    OsShellRule(),
-    UnsafeYamlLoadRule(),
-    DisabledTlsVerificationRule(),
-    DebugModeRule(),
-    SqlInjectionRule(),
-    PathTraversalRule(),
-    SsrfRule(),
-    UnsafeHtmlOutputRule(),
-    XPathInjectionRule(),
-    OpenRedirectRule(),
-    UnvalidatedInputRule(),
-    WeakCryptoKeyRule(),
-    LogInjectionRule(),
-    HttpHeaderInjectionRule(),
-    WeakRngSeedRule(),
-    ReDoSRule(),
-    RegexDosRule(),
-    UrlValidationBypassRule(),
-    XxeRule(),
-    InsecureCookieRule(),
-    CsrfRule(),
-    InsecureTmpFileRule(),
-    CleartextCredentialsRule(),
-    UnnecessaryPrivilegesRule(),
-    NoneDereferenceRule(),
-    UnrestrictedUploadRule(),
-    WeakPasswordStorageRule(),
-    SensitiveDataLogRule(),
-    XmlInjectionRule(),
-    ImproperOutputEncodingRule(),
-    JwtNoVerifyRule(),
-    InsecureFilePermissionsRule(),
-    DivideByZeroRule(),
-]
+
+def default_security_rules(enable_taint: bool = True) -> List[SecurityRule]:
+    return [
+        EvalUsageRule(),
+        ExecUsageRule(),
+        HardcodedSecretsRule(),
+        InsecureRandomRule(),
+        SubprocessShellRule(),
+        PickleRule(),
+        SecurityAssertRule(),
+        WeakHashRule(),
+        OsShellRule(),
+        UnsafeYamlLoadRule(),
+        DisabledTlsVerificationRule(),
+        DebugModeRule(),
+        SqlInjectionRule(),
+        PathTraversalRule(),
+        SsrfRule(enable_taint=enable_taint),
+        UnsafeHtmlOutputRule(enable_taint=enable_taint),
+        XPathInjectionRule(),
+        OpenRedirectRule(),
+        UnvalidatedInputRule(),
+        WeakCryptoKeyRule(),
+        LogInjectionRule(),
+        HttpHeaderInjectionRule(),
+        WeakRngSeedRule(),
+        ReDoSRule(),
+        RegexDosRule(),
+        UrlValidationBypassRule(),
+        XxeRule(),
+        InsecureCookieRule(),
+        CsrfRule(),
+        InsecureTmpFileRule(),
+        CleartextCredentialsRule(),
+        UnnecessaryPrivilegesRule(),
+        NoneDereferenceRule(),
+        UnrestrictedUploadRule(),
+        WeakPasswordStorageRule(),
+        SensitiveDataLogRule(),
+        XmlInjectionRule(),
+        ImproperOutputEncodingRule(),
+        JwtNoVerifyRule(),
+        InsecureFilePermissionsRule(),
+        DivideByZeroRule(),
+    ]
+
+
+_DEFAULT_RULES: List[SecurityRule] = default_security_rules()
 
 
 class SecurityAnalyzer:
-    def __init__(self, rules: List[SecurityRule] | None = None) -> None:
-        self.rules = rules if rules is not None else _DEFAULT_RULES
+    def __init__(
+        self,
+        rules: List[SecurityRule] | None = None,
+        *,
+        enable_taint: bool = True,
+    ) -> None:
+        self.rules = rules if rules is not None else default_security_rules(enable_taint)
 
     def analyze(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []
         for rule in self.rules:
-            findings.extend(enrich_security_finding(finding) for finding in rule.check(tree, file_path, source_lines))
+            findings.extend(
+                enrich_security_finding(finding)
+                for finding in rule.check(tree, file_path, source_lines)
+            )
         return findings
