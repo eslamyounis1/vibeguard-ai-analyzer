@@ -459,7 +459,7 @@ Report coverage gaps honestly in the paper.
 - [x] README sync with current architecture (41 rules, 19 fixers, paper results, reproduce instructions)
 - [x] Threats-to-validity section expanded (4 categories: construct, internal, external, conclusion validity)
 - [x] `tests/test_fixers_v3.py` — 23 tests for new fixers (all passing)
-- [ ] `results/baselines_multi/` — baselines on 50 AI lines from `cweval_multi` (requires data)
+- [ ] `results/baselines_multi/` — baselines on 50 AI lines from `cweval_multi` (data-required: needs `data/corpus/cweval_multi.jsonl` on disk; not a code gap)
 
 ---
 
