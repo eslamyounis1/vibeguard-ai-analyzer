@@ -38,6 +38,8 @@ class FixResult:
     applied: List[AppliedFix] = field(default_factory=list)
     findings_before: int = 0
     findings_after: int = 0
+    findings_before_list: List[dict] = field(default_factory=list)
+    findings_after_list: List[dict] = field(default_factory=list)
     safe: bool = True
     note: Optional[str] = None
 
@@ -59,8 +61,8 @@ class FixResult:
             "changed": self.changed,
             "safe": self.safe,
             "note": self.note,
-            "findings_before": self.findings_before,
-            "findings_after": self.findings_after,
+            "findings_before": self.findings_before_list,
+            "findings_after": self.findings_after_list,
             "applied": [a.to_dict() for a in self.applied],
             "fixed_code": self.fixed_code,
         }
@@ -71,11 +73,14 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
     before = scanner.scan_source(code, filename)
 
     if not before.ok:
+        parse_list = [f.to_dict() for f in before.findings]
         return FixResult(
             original_code=code,
             fixed_code=code,
             findings_before=len(before.findings),
             findings_after=len(before.findings),
+            findings_before_list=parse_list,
+            findings_after_list=parse_list,
             safe=False,
             note="Source did not parse; nothing fixed.",
         )
@@ -107,12 +112,16 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
                 )
                 break
 
+    before_list = [f.to_dict() for f in before.findings]
+
     if not edits:
         return FixResult(
             original_code=code,
             fixed_code=code,
             findings_before=len(before.findings),
             findings_after=len(before.findings),
+            findings_before_list=before_list,
+            findings_after_list=before_list,
             safe=True,
             note="No auto-fixable findings.",
         )
@@ -137,12 +146,16 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
         applied = []
         safe = False
 
+    after_list = [f.to_dict() for f in after.findings] if after.ok else before_list
+
     return FixResult(
         original_code=code,
         fixed_code=fixed_code,
         applied=applied,
         findings_before=len(before.findings),
         findings_after=len(after.findings) if after.ok else len(before.findings),
+        findings_before_list=before_list,
+        findings_after_list=after_list,
         safe=safe,
         note=note,
     )
