@@ -179,9 +179,15 @@ kbd {
   margin: 0;
   padding: 10px;
   overflow-x: auto;
-  background: var(--bg);
+  background: var(--vscode-textCodeBlock-background, var(--bg));
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.msg pre code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 0.9em);
+  white-space: pre;
 }
 
 .copy-btn {
@@ -214,6 +220,17 @@ kbd {
 
 .findings li {
   color: var(--warn);
+}
+
+/* ── History restore note ── */
+
+.msg.history-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  border: 1px dashed var(--border);
+  text-align: center;
+  border-radius: 6px;
+  background: transparent;
 }
 
 /* ── Retry button (shown inside error messages) ── */

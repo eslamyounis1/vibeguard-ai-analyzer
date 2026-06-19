@@ -8,7 +8,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _session?: ChatSession;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _context: vscode.ExtensionContext,
+  ) {}
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -25,8 +28,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._session = new ChatSession((message) => {
       webviewView.webview.postMessage(message);
     });
+    this._session.bindState(this._context.workspaceState);
 
     webviewView.webview.onDidReceiveMessage((message) => {
+      if (message.type === "ready") {
+        this._session?.postConfig();
+        this._session?.loadHistory();
+        return;
+      }
       void this._session?.handleMessage(message);
     });
   }

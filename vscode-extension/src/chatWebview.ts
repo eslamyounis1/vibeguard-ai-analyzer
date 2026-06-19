@@ -6,6 +6,8 @@ import type { ChatMessage, ChatResponse, Finding } from "./types";
 export function getChatHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "chat.js"));
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "chat.css"));
+  const hlScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "highlight.min.js"));
+  const hlStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "highlight-vscode.css"));
   const nonce = String(Date.now());
 
   return `<!DOCTYPE html>
@@ -15,6 +17,7 @@ export function getChatHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${styleUri}" rel="stylesheet" />
+  <link href="${hlStyleUri}" rel="stylesheet" />
   <title>VibeGuard Chat</title>
 </head>
 <body>
@@ -41,17 +44,42 @@ export function getChatHtml(webview: vscode.Webview, extensionUri: vscode.Uri): 
       <button id="scan" disabled aria-label="Run VibeGuard security scan on the active editor">Scan editor</button>
     </div>
   </footer>
+  <script nonce="${nonce}" src="${hlScriptUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 }
 
+const HISTORY_KEY = "vibeguard.chatHistory";
+const LAST_CODE_KEY = "vibeguard.chatLastCode";
+
 /** Shared chat logic for sidebar view and optional editor panel. */
 export class ChatSession {
   private _history: ChatMessage[] = [];
   private _lastCode = "";
+  private _state?: vscode.Memento;
 
   constructor(private readonly _post: (message: unknown) => void) {}
+
+  bindState(state: vscode.Memento): void {
+    this._state = state;
+  }
+
+  loadHistory(): void {
+    if (!this._state) return;
+    const history = this._state.get<ChatMessage[]>(HISTORY_KEY, []);
+    const lastCode = this._state.get<string>(LAST_CODE_KEY, "");
+    if (history.length === 0) return;
+    this._history = history;
+    this._lastCode = lastCode;
+    this._post({ type: "history-restored", count: history.length, lastCode });
+  }
+
+  private saveHistory(): void {
+    if (!this._state) return;
+    void this._state.update(HISTORY_KEY, this._history);
+    void this._state.update(LAST_CODE_KEY, this._lastCode);
+  }
 
   postConfig(): void {
     const cfg = getConfig();
@@ -65,9 +93,6 @@ export class ChatSession {
 
   async handleMessage(message: { type?: string; text?: string; code?: string }): Promise<void> {
     switch (message.type) {
-      case "ready":
-        this.postConfig();
-        break;
       case "send":
         await this.handleSend(String(message.text ?? ""));
         break;
@@ -80,6 +105,7 @@ export class ChatSession {
       case "clear":
         this._history = [];
         this._lastCode = "";
+        this.saveHistory();
         break;
     }
   }
@@ -104,6 +130,7 @@ export class ChatSession {
       this._lastCode = result.code;
       this._history.push({ role: "assistant", content: result.code });
       this._post({ type: "assistant", response: result });
+      this.saveHistory();
     } catch (err) {
       const msg =
         err instanceof ApiError

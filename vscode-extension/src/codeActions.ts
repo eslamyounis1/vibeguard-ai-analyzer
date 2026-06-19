@@ -44,6 +44,22 @@ export class VibeGuardCodeActionProvider implements vscode.CodeActionProvider {
         arguments: [finding],
       };
       actions.push(explainAction);
+
+      // Suppress this rule on this line via an inline comment
+      const suppressAction = new vscode.CodeAction(
+        `Suppress [${finding.rule_id}] on this line`,
+        vscode.CodeActionKind.QuickFix,
+      );
+      const line = Math.max(0, (finding.line ?? 1) - 1);
+      const lineText = document.lineAt(line).text;
+      const lineEnd = new vscode.Position(line, lineText.length);
+      suppressAction.edit = new vscode.WorkspaceEdit();
+      suppressAction.edit.insert(
+        document.uri,
+        lineEnd,
+        `  # vibeguard: ignore[${finding.rule_id}]`,
+      );
+      actions.push(suppressAction);
     }
 
     return actions;

@@ -139,6 +139,22 @@
         configLine.textContent = `${msg.provider}:${msg.model} @ ${msg.orchestrator}`;
         break;
 
+      case "history-restored": {
+        if (msg.count > 0) {
+          showEmptyState(false);
+          const div = document.createElement("div");
+          div.className = "msg history-note";
+          div.textContent = `↩ Restored ${msg.count} message(s) from previous session.`;
+          messagesEl.appendChild(div);
+          if (msg.lastCode) {
+            lastCode = msg.lastCode;
+            insertBtn.disabled = false;
+            scanBtn.disabled = false;
+          }
+        }
+        break;
+      }
+
       case "user":
         appendMessage("user", escapeHtml(msg.content));
         break;
@@ -171,7 +187,7 @@
           ? "✓ Passed VibeGuard security rules"
           : `⚠ ${res.findings.length} rule violation(s)`;
 
-        const codeId = "code-" + String(Date.now());
+        const codeId = "code-" + String(Date.now()) + "-" + String(Math.random()).slice(2, 7);
         let html =
           `<div class="meta">${escapeHtml(statusText)}</div>` +
           `<div class="code-wrapper">` +
@@ -188,6 +204,14 @@
           html += "</ul>";
         }
         appendMessage("assistant", html);
+
+        // Apply Python syntax highlighting after the element is in the DOM
+        if (window.pyHighlight && lastCode) {
+          const codeEl = document.getElementById(codeId);
+          if (codeEl) {
+            codeEl.innerHTML = window.pyHighlight.highlight(lastCode);
+          }
+        }
         break;
       }
     }

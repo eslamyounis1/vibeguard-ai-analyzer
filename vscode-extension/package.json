@@ -74,6 +74,11 @@
         "command": "vibeguard.navigateToFinding",
         "title": "Go to Finding",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "vibeguard.exportFindings",
+        "title": "VibeGuard: Export Findings as JSON",
+        "icon": "$(export)"
       }
     ],
     "viewsContainers": {
@@ -180,6 +185,10 @@
         },
         {
           "command": "vibeguard.navigateToFinding",
+          "when": "false"
+        },
+        {
+          "command": "vibeguard.exportFindings",
           "when": "false"
         }
       ]

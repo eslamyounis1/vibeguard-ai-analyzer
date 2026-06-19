@@ -1,0 +1,10 @@
+/* Python syntax token colours — mapped to VS Code semantic token variables where available */
+
+.py-kw   { color: var(--vscode-symbolIcon-keywordForeground,    #569cd6); font-weight: 600; }
+.py-bi   { color: var(--vscode-symbolIcon-functionForeground,   #dcdcaa); }
+.py-fn   { color: var(--vscode-symbolIcon-methodForeground,     #dcdcaa); }
+.py-str  { color: var(--vscode-symbolIcon-stringForeground,     #ce9178); }
+.py-num  { color: var(--vscode-symbolIcon-numberForeground,     #b5cea8); }
+.py-cmt  { color: var(--vscode-symbolIcon-colorForeground,      #6a9955); font-style: italic; }
+.py-dec  { color: var(--vscode-symbolIcon-classForeground,      #c586c0); }
+.py-const{ color: var(--vscode-symbolIcon-constantForeground,   #4fc1ff); }

@@ -8,6 +8,7 @@ import { VibeGuardDiagnostics } from "./diagnostics";
 import { FindingItem, FindingsTreeView } from "./findingsTreeView";
 import { VibeGuardHoverProvider } from "./hoverProvider";
 import { formatAnalyzeSummary, formatCompareReport, formatFixReport, formatProfileReport } from "./report";
+import { buildReportData, ReportPanel } from "./reportPanel";
 import type { Finding } from "./types";
 
 const OUTPUT_CHANNEL = "VibeGuard";
@@ -60,7 +61,7 @@ function getCodeFromEditor(editor: vscode.TextEditor, selectionOnly: boolean): s
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL);
   const diagnostics = new VibeGuardDiagnostics();
-  const chatViewProvider = new ChatViewProvider(context.extensionUri);
+  const chatViewProvider = new ChatViewProvider(context.extensionUri, context);
   const findingsTree = new FindingsTreeView();
   const fixedContentProvider = new FixedContentProvider();
 
@@ -133,6 +134,11 @@ export function activate(context: vscode.ExtensionContext): void {
             diagnostics.setFromAnalyze(uri, editor.document, combined.static);
             updateScanStatusBar(combined.static.findings);
             findingsTree.update(combined.static.findings, uri);
+            ReportPanel.createOrShow(
+              context,
+              buildReportData(uri, combined.static, combined.dynamic),
+              uri,
+            );
             output.clear();
             output.appendLine(formatAnalyzeSummary(combined.static));
             output.appendLine("");
@@ -163,6 +169,7 @@ export function activate(context: vscode.ExtensionContext): void {
             diagnostics.setFromAnalyze(uri, editor.document, analyzeResult);
             updateScanStatusBar(analyzeResult.findings);
             findingsTree.update(analyzeResult.findings, uri);
+            ReportPanel.createOrShow(context, buildReportData(uri, analyzeResult), uri);
             output.clear();
             output.appendLine(formatAnalyzeSummary(analyzeResult));
             output.show(true);

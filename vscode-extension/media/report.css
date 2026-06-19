@@ -1,0 +1,307 @@
+:root {
+  --bg: var(--vscode-editor-background);
+  --fg: var(--vscode-editor-foreground);
+  --muted: var(--vscode-descriptionForeground);
+  --border: var(--vscode-panel-border, rgba(128,128,128,0.25));
+  --surface: var(--vscode-editor-inactiveSelectionBackground);
+  --accent: var(--vscode-button-background);
+  --accent-fg: var(--vscode-button-foreground);
+  --accent-hover: var(--vscode-button-hoverBackground, var(--accent));
+
+  --c-critical: #f14c4c;
+  --c-high:     #f97316;
+  --c-medium:   #e9b824;
+  --c-low:      #3b82f6;
+  --c-info:     #6b7280;
+  --c-clean:    #22c55e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--fg);
+  background: var(--bg);
+  padding: 0 0 40px;
+}
+
+#loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Header ── */
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.file-badge {
+  font-size: 0.82rem;
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.ts {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+#export-btn {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#export-btn:hover:not(:disabled) { background: var(--accent-hover); }
+#export-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Severity summary bar ── */
+
+.summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.pill-critical  { background: var(--c-critical); }
+.pill-high      { background: var(--c-high); }
+.pill-medium    { background: var(--c-medium); color: #1a1a1a; }
+.pill-low       { background: var(--c-low); }
+.pill-info      { background: var(--c-info); }
+.pill-clean     { background: var(--c-clean); }
+
+.risk-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1.5px solid currentColor;
+}
+
+.risk-high   { color: var(--c-critical); }
+.risk-medium { color: var(--c-medium); }
+.risk-low    { color: var(--c-clean); }
+
+/* ── Section shared ── */
+
+section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+section h2 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+/* ── Performance grid ── */
+
+.perf-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.perf-card {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+  gap: 4px;
+}
+
+.perf-val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.perf-lbl {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* ── Findings list ── */
+
+.findings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: none;
+}
+
+.no-findings {
+  color: var(--muted);
+  font-style: italic;
+  padding: 8px 0;
+}
+
+.finding-card {
+  border-left: 3px solid var(--border);
+  background: var(--surface);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.finding-card.sev-critical { border-left-color: var(--c-critical); }
+.finding-card.sev-high     { border-left-color: var(--c-high); }
+.finding-card.sev-medium   { border-left-color: var(--c-medium); }
+.finding-card.sev-low      { border-left-color: var(--c-low); }
+.finding-card.sev-info     { border-left-color: var(--c-info); }
+
+.finding-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.finding-rule {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.finding-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.severity-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.severity-tag.sev-critical  { background: var(--c-critical); }
+.severity-tag.sev-high      { background: var(--c-high); }
+.severity-tag.sev-medium    { background: var(--c-medium); color: #1a1a1a; }
+.severity-tag.sev-low       { background: var(--c-low); }
+.severity-tag.sev-info      { background: var(--c-info); }
+
+.jump-btn {
+  margin-left: auto;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, var(--accent));
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.jump-btn:hover { opacity: 0.75; }
+
+.finding-msg {
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.finding-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.badge {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.badge-cwe   { border-color: var(--c-critical); color: var(--c-critical); }
+.badge-owasp { border-color: var(--c-high);     color: var(--c-high); }
+
+.finding-suggestion {
+  font-size: 0.83rem;
+  color: var(--muted);
+  line-height: 1.4;
+  border-left: 2px solid var(--c-clean);
+  padding-left: 8px;
+  margin-top: 2px;
+}
+
+.finding-snippet {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin-top: 2px;
+}
+
+.finding-snippet code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.82rem;
+  white-space: pre;
+}
