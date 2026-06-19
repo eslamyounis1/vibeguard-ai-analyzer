@@ -32,6 +32,14 @@ export class VibeGuardDiagnostics {
     return (this._findings.get(uri.toString()) ?? []).filter((f) => f.line === line);
   }
 
+  getAllFindings(): Finding[] {
+    const all: Finding[] = [];
+    for (const findings of this._findings.values()) {
+      all.push(...findings);
+    }
+    return all;
+  }
+
   setFromAnalyze(uri: vscode.Uri, document: vscode.TextDocument, result: AnalyzeResponse): void {
     const diagnostics: vscode.Diagnostic[] = [];
 

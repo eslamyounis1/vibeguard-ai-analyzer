@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { ApiError, chatGenerate } from "./client";
 import { getConfig } from "./config";
-import type { ChatMessage, ChatResponse } from "./types";
+import type { ChatMessage, ChatResponse, Finding } from "./types";
 
 export function getChatHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", "chat.js"));
@@ -114,6 +114,22 @@ export class ChatSession {
       this._post({ type: "error", content: msg });
       vscode.window.showErrorMessage(`VibeGuard Chat: ${msg}`);
     }
+  }
+
+  async explainFinding(finding: Finding): Promise<void> {
+    const lines = [
+      `Explain this VibeGuard security finding and provide a concrete fix:`,
+      ``,
+      `Rule: [${finding.rule_id}] ${finding.title}`,
+      `Severity: ${finding.severity}`,
+      `Line ${finding.line}: ${finding.message}`,
+      finding.cwe ? `CWE: ${finding.cwe}` : null,
+      finding.owasp ? `OWASP: ${finding.owasp}` : null,
+      finding.impact ? `Impact: ${finding.impact}` : null,
+      finding.suggestion ? `Suggested fix: ${finding.suggestion}` : null,
+      finding.snippet ? `\nCode snippet:\n\`\`\`python\n${finding.snippet.trim()}\n\`\`\`` : null,
+    ].filter(Boolean).join("\n");
+    await this.handleSend(lines);
   }
 
   private async insertCode(code: string): Promise<void> {

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ChatSession, getChatHtml } from "./chatWebview";
+import type { Finding } from "./types";
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "vibeguard.chatView";
@@ -28,6 +29,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage((message) => {
       void this._session?.handleMessage(message);
     });
+  }
+
+  explainFinding(finding: Finding): void {
+    void this._session?.explainFinding(finding);
   }
 
   focus(): void {
