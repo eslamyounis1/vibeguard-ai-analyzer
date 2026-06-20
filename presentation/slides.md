@@ -63,9 +63,10 @@ ASE 2026 | Paris Lodron University of Salzburg
                             │  Verified findings + runtime profile
             ┌───────────────▼───────────────┐
             │     PILLAR 3: Auto-Fix        │
-            │  fixers/  ← deterministic     │
+            │  fixers/  ← deterministic      │
+            │  (15 rules with pattern fixes) │
             │  fixers/llm_fixer.py ← LLM    │
-            │  15 fixable rules              │
+            │  (all 53 rules eligible)       │
             │  Before/after profiling delta  │
             └───────────────┬───────────────┘
                             │  Fixed code + CPU/memory/energy delta
