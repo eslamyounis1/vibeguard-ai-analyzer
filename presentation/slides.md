@@ -120,13 +120,15 @@ ASE 2026 | Paris Lodron University of Salzburg
 
 **AI code carries more issues — smells drive the gap**
 
-| Source | Security | Smell | Perf | Total | % Affected |
-|--------|----------|-------|------|-------|------------|
-| Human | 0.24 | 0.32 | 0.0 | 0.56 | 44% |
-| GPT-4.1 | 0.24 | **0.84** | 0.0 | **1.08** | **52%** |
-| GPT-4.1-mini | 0.28 | 0.32 | 0.0 | 0.60 | 40% |
-| GPT-4o | 0.28 | 0.20 | 0.0 | 0.48 | 40% |
-| GPT-4o-mini | 0.28 | 0.16 | 0.0 | 0.44 | 36% |
+| Source | Security | Smell | Total | % Affected |
+|--------|----------|-------|-------|------------|
+| Human | 0.24 | 0.32 | 0.56 | 44% |
+| GPT-4.1 | 0.24 | **0.84** | **1.08** | **52%** |
+| GPT-4.1-mini | 0.28 | 0.32 | 0.60 | 40% |
+| GPT-4o | 0.28 | 0.20 | 0.48 | 40% |
+| GPT-4o-mini | 0.28 | 0.16 | 0.44 | 36% |
+
+> Note: Performance rules fire on algorithmic tasks (EvalPlus, Slide 10) — not on short security functions like CWEval.
 
 > Key finding: GPT-4.1 generates **3× more smells** than other models — more capable does not mean cleaner code.
 
@@ -162,11 +164,10 @@ ASE 2026 | Paris Lodron University of Salzburg
 
 ### Slide 9 — RQ4: Auto-Fix Results (30s)
 
-**LLM-based fixer outperforms deterministic fixer — with profiler-validated improvements**
+**LLM-based fixer resolves real vulnerabilities — with profiler-validated improvements**
 
 | Fixer | Trigger Rate | Oracle Improved |
 |-------|-------------|-----------------|
-| Deterministic | 4% (4/100) | 0% |
 | LLM (gpt-4o-mini) | **38% (38/100)** | **32% (18/56)** |
 
 - Top oracle wins: CWE-022 path traversal (5), CWE-113 header injection (4), CWE-502 pickle (3)
@@ -208,7 +209,7 @@ ASE 2026 | Paris Lodron University of Salzburg
 - **Security**: AI models pass functional tests but 36–52% produce insecure code
 - **Smells**: GPT-4.1 generates 3× more smells — capability does not guarantee cleanliness
 - **Performance**: AI matched or beat humans on **73/100 tasks** — but gpt-4o introduced a `pop(0)` O(n²) regression (5.4×) caught by new rule PF004
-- **Fix**: LLM auto-fix outperforms deterministic (38% trigger, 32% oracle gain)
+- **Fix**: LLM auto-fix resolves real vulnerabilities (38% trigger rate, 32% oracle gain)
 - **Comparison**: VibeGuard F1=0.636 vs Bandit F1=0.224 — purpose-built, multi-dimensional rules matter
 
 ---
