@@ -1,221 +1,277 @@
----
-marp: true
-theme: default
-paginate: true
-backgroundColor: "#ffffff"
-color: "#1a1a2e"
-style: |
-  section {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    font-size: 26px;
-  }
-  h1 { color: #1a237e; font-size: 1.8em; border-bottom: 3px solid #3949ab; padding-bottom: 0.2em; }
-  h2 { color: #283593; font-size: 1.3em; }
-  h3 { color: #3949ab; font-size: 1.1em; }
-  table { font-size: 0.72em; width: 100%; }
-  th { background-color: #3949ab; color: white; padding: 5px 10px; }
-  td { padding: 4px 10px; border-bottom: 1px solid #ddd; }
-  tr:nth-child(even) td { background-color: #f5f7ff; }
-  code { background: #f0f2ff; color: #c62828; padding: 2px 6px; border-radius: 4px; }
-  blockquote { background: #e8eaf6; border-left: 4px solid #3949ab; padding: 8px 14px; border-radius: 4px; margin: 8px 0; }
----
+# VibeGuard: Detecting Security Vulnerabilities, Code Smells, and Performance Issues in AI-Generated Python Code
 
-<!-- SLIDE 1 — TITLE -->
-
-# VibeGuard
-## Empirical Study of Security, Quality & Repair in AI-Generated Python Code
-
-**ASE 2026 — Paris Lodron University of Salzburg**
-
-Haylemicheal Mekonnen · Eslam Younis · Elbetel Reta
-
-> _"Can we trust the code AI writes?"_
+**ASE 2026 | Paris Lodron University of Salzburg**
+**Total time: 10 minutes | 3 Presenters**
 
 ---
 
-<!-- SLIDE 2 — PROBLEM & RESEARCH QUESTIONS -->
-
-# Problem & Research Questions
-
-**"Vibe coding"** — generating code fast with minimal review — introduces three risks:
-
-- **Security:** eval injection, weak crypto, hardcoded secrets, SSRF, XSS ...
-- **Quality:** code smells, high complexity, structural deficiencies
-- **Performance:** energy-inefficient patterns, unnecessary CPU cycles
-
-**Do existing static tools catch these in AI-generated code?**
-
-| RQ | Question |
-|----|---------|
-| RQ1 | How prevalent are findings in AI vs. human-reference code? |
-| RQ2 | Do AI solutions have more findings than secure human references? |
-| RQ4 | How often does auto-fix remove findings and improve security? |
-| RQ5 | How does VibeGuard compare to Bandit on CWE-labeled vulnerabilities? |
+## Presenter 1 — Motivation & Approach (3.5 min)
 
 ---
 
-<!-- SLIDE 3 — ARCHITECTURE -->
+### Slide 1 — Title (30s)
 
-# VibeGuard Architecture
+**VibeGuard: Detecting Security Vulnerabilities, Code Smells, and Performance Issues in AI-Generated Python Code**
+
+ASE 2026 | Paris Lodron University of Salzburg
+
+*[Names of all 3 presenters]*
+
+---
+
+### Slide 2 — Problem & Motivation (1 min)
+
+**Is AI-generated code secure, clean, and energy-efficient?**
+
+- AI code generation is exploding (GPT-4o, Copilot, etc.) — functional correctness is not enough
+- Three critical concerns:
+  - **Security** — are AI models introducing vulnerabilities?
+  - **Smells** — do AI models write maintainable, idiomatic code?
+  - **Energy** — do performance anti-patterns carry a real runtime cost?
+- Prior work focused on correctness — security and quality largely ignored
+- **Gap**: no unified, purpose-built analyzer addressing all three dimensions
+
+---
+
+### Slide 3 — VibeGuard Architecture (1 min)
+
+**A unified, multi-layer analyzer for AI-generated Python code**
 
 ```
-Input Code
-    │
-    ├─► Static Analysis  (security/ — 25 security + 9 smell + 3 perf rules, AST-based)
-    │
-    ├─► Dynamic Analysis (sandbox/ — isolated subprocess, CPU / memory / energy)
-    │
-    ├─► Auto-Fix Engine  (fixers/ — deterministic rewrites + LLM-powered repair)
-    │                       safety-gated: reverts if new findings are introduced
-    ├─► Orchestrator     (static ↔ dynamic corroboration, before/after comparison)
-    │
-    └─► Output: terminal report / JSON / VS Code Problems / CI exit codes
+┌─────────────────────────────────────────────────────────────────┐
+│                        INPUT LAYER                              │
+│         AI-generated Python code  +  Human reference code      │
+│         (CWEval · SALLM · EvalPlus HumanEval+ 300 samples)     │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+            ┌───────────────▼───────────────┐
+            │      PILLAR 1: Static Analysis │
+            │  security/   smell/   perf/    │
+            │  40 rules    9 rules  4 rules  │
+            │  VG001–VG040   PF001–PF004     │
+            │  Taint tracking (SSRF + XSS)   │
+            └───────────────┬───────────────┘
+                            │  Findings
+            ┌───────────────▼───────────────┐
+            │   PILLAR 2: Dynamic Probing   │
+            │  sandbox/security_prober.py    │
+            │  10 probes: SQL · CMD · Path   │
+            │  XSS · Header · Log · Key ...  │
+            │  sandbox/profiler.py           │
+            │  CPU · Memory · Wall · Energy  │
+            └───────────────┬───────────────┘
+                            │  Verified findings + runtime profile
+            ┌───────────────▼───────────────┐
+            │     PILLAR 3: Auto-Fix        │
+            │  fixers/  ← deterministic     │
+            │  fixers/llm_fixer.py ← LLM    │
+            │  15 fixable rules              │
+            │  Before/after profiling delta  │
+            └───────────────┬───────────────┘
+                            │  Fixed code + CPU/memory/energy delta
+            ┌───────────────▼───────────────┐
+            │   PILLAR 4: Evaluation        │
+            │  experiments/  RQ1–RQ5         │
+            │  Precision · Recall · F1       │
+            │  Energy · Oracle · Baselines   │
+            └───────────────────────────────┘
 ```
 
-**25 security rules (VG001–VG025):** eval/exec, hardcoded secrets, weak hash, SQL injection,
-path traversal, SSRF, XSS, XPath injection, unsafe YAML/pickle, TLS bypass, log injection,
-HTTP header injection, weak crypto key (NIST < 3072 bits), ReDoS, URL domain bypass, and more.
+- **Modules**: `security/` · `sandbox/` · `fixers/` · `orchestrator/` · `experiments/`
+- **53 rules** total: 40 security (VG001–VG040) + 9 smell + 4 performance (PF001–PF004)
+- Each pillar is independently usable via CLI (`vibeguard scan --profile`, `--fix --profile`)
 
 ---
 
-<!-- SLIDE 4 — BENCHMARK & METHODOLOGY -->
+### Slide 4 — Research Questions (1 min)
 
-# Benchmark & Methodology
-
-### CWEval Benchmark
-- 25 Python security-oriented tasks, each with **functionality + security pytest oracles**
-- Ground truth = oracle pass/fail (not static warning counts)
-
-### Corpus — 125 samples
-
-| Source | n |
-|--------|---|
-| Human secure references | 25 |
-| openai:gpt-4o-mini / gpt-4o / gpt-4.1-mini / gpt-4.1 | 25 each |
-
-### Baselines
-- **Bandit** — Python security linter
-- VibeGuard evaluated across 3 ruleset versions (v1: 19 rules → v3: 25 rules)
+| RQ | Dimension | Question |
+|----|-----------|----------|
+| RQ1 | Security + Quality | How many vulnerabilities and smells does VibeGuard find in AI code? |
+| RQ2 | Comparison | Does AI code have more issues than human-written code? |
+| RQ3 | Performance | Do AI models naturally introduce performance anti-patterns on algorithmic tasks? |
+| RQ4 | Fix | How effective is auto-fix at resolving detected issues? |
+| RQ5 | Baseline | How does VibeGuard compare to state-of-the-practice static analyzers? |
 
 ---
 
-<!-- SLIDE 5 — RQ1 & RQ2: PREVALENCE -->
-
-# RQ1 & RQ2 — Issue Prevalence: AI vs. Human
-
-Mean static findings per sample (v3, 25-rule ruleset):
-
-| Source | Security | Code Smell | Total | % Any Finding |
-|--------|----------|-----------|-------|---------------|
-| Human (secure ref) | 0.60 | 0.32 | **0.92** | 68% |
-| gpt-4.1 | 0.48 | **0.84** | **1.32** | 68% |
-| gpt-4.1-mini | 0.56 | 0.32 | **0.88** | 60% |
-| gpt-4o / gpt-4o-mini | 0.52–0.56 | 0.16–0.20 | **0.72** | 56% |
-
-**Key findings:**
-- Human references now exceed AI models in raw security finding count — security-oriented reference code exercises more flagged API surfaces
-- AI and human converge at ~0.91 total findings (RQ2)
-- **Static finding count is a poor proxy for actual security** — oracle results tell a different story
+## Presenter 2 — Results (4 min)
 
 ---
 
-<!-- SLIDE 6 — THE CORE FINDING: FUNCTIONAL BUT INSECURE -->
+### Slide 5 — Dataset & Setup (30s)
 
-# The Core Finding: Functional But Insecure
+**Two corpora — security tasks and algorithmic tasks**
 
-CWEval pytest oracle results — does the code actually work AND stay secure?
+| Corpus | Samples | Purpose |
+|--------|---------|---------|
+| CWEval (4 models) | 25 human + 100 AI | Security + smells (RQ1–RQ2, RQ4–RQ5) |
+| SALLM | 100 AI | Security detection coverage |
+| EvalPlus HumanEval+ | 100 human + 200 AI | Performance study (RQ3) |
 
-| Model | Functional | Security | Both | Functional-Only (INSECURE) |
-|-------|:----------:|:--------:|:----:|:--------------------------:|
-| gpt-4.1 | 18/25 **72%** | 13/25 **52%** | 12/25 | **6 samples** |
-| gpt-4.1-mini | 18/25 **72%** | 12/25 **48%** | 12/25 | **6 samples** |
-| gpt-4o | 18/25 **72%** | 10/25 **40%** | 10/25 | **8 samples** |
-| gpt-4o-mini | 17/25 **68%** | 9/25 **36%** | 9/25 | **8 samples** |
-
-> All models achieve ~70% functional correctness.
-> Security correctness lags by **20–36 percentage points.**
-> **Code that passes tests and appears to work is not necessarily safe.**
+- **Security models**: GPT-4.1, GPT-4.1-mini, GPT-4o, GPT-4o-mini
+- **Performance models**: GPT-4o, GPT-4o-mini (100 algorithmic tasks, 300 samples total)
+- EvalPlus selected for algorithmic diversity — tasks where complexity tradeoffs are observable
 
 ---
 
-<!-- SLIDE 7 — RQ5: TOOL COMPARISON -->
+### Slide 6 — RQ1: Static Findings Across All Three Dimensions (1 min)
 
-# RQ5 — VibeGuard vs. Bandit
+**AI code carries more issues — smells drive the gap**
 
-Detection quality progression (21 CWE classes, 100 AI samples):
+| Source | Security | Smell | Perf | Total | % Affected |
+|--------|----------|-------|------|-------|------------|
+| Human | 0.24 | 0.32 | 0.0 | 0.56 | 44% |
+| GPT-4.1 | 0.24 | **0.84** | 0.0 | **1.08** | **52%** |
+| GPT-4.1-mini | 0.28 | 0.32 | 0.0 | 0.60 | 40% |
+| GPT-4o | 0.28 | 0.20 | 0.0 | 0.48 | 40% |
+| GPT-4o-mini | 0.28 | 0.16 | 0.0 | 0.44 | 36% |
 
-| Version | Rules | TP | FP | FN | Precision | Recall | F1 |
-|---------|:-----:|:--:|:--:|:--:|:---------:|:------:|:--:|
-| v1 | 19 | 8 | 19 | 20 | 0.296 | 0.286 | 0.291 |
-| v2 | 24 | 27 | 12 | 49 | 0.692 | 0.355 | 0.470 |
-| **v3** | **25** | **41** | **12** | **35** | **0.774** | **0.539** | **0.636** |
-| Bandit | — | 12 | 19 | 64 | 0.387 | 0.158 | 0.224 |
-
-VibeGuard v3: **2× precision**, **3.4× recall**, **2.8× F1** vs. Bandit.
-
-**Oracle calibration:** 21 of 35 FNs (60%) are **oracle-safe** — AI models wrote correct secure code that the benchmark still labels as a miss. Corrected recall = **0.745**, corrected F1 = **0.777**.
+> Key finding: GPT-4.1 generates **3× more smells** than other models — more capable does not mean cleaner code.
 
 ---
 
-<!-- SLIDE 8 — RQ4: AUTO-FIX -->
+### Slide 7 — RQ2: AI vs Human Across All Dimensions (30s)
 
-# RQ4 — Auto-Fix Effectiveness
+**AI code is ~16% worse overall on security tasks — smells drive the gap**
 
-Two repair strategies on 100 AI CWEval samples:
-
-| Metric | Deterministic | LLM (gpt-4o-mini) |
-|--------|:---:|:---:|
-| Trigger rate | 4% (4/100) | **38% (38/100)** |
-| Safety gate passed | 4/4 (100%) | 38/38 (100%) |
-| Oracle security improved | **0/56 (0%)** | **18/56 (32.1%)** |
-
-**Top LLM repair wins:** CWE-113 HTTP header injection (4/4), CWE-79 XSS (2/2), CWE-117 log injection (2/2), CWE-502 unsafe deserialization (3/4), CWE-22 path traversal (5/8).
-
-**Key tension discovered:**
-> Static finding removal **≠** oracle security.
-> CWE-326: LLM raised key size to 4096 bits, removed all findings — oracle still fails.
-> CWE-22/113/79: LLM passed oracle **without** removing the static finding.
-> Both metrics are needed to fully characterise repair quality.
+- Human mean total: **0.56** | AI mean total: **0.65**
+- Security findings: comparable between AI and human
+- **Smell findings drive the quality gap** — AI models favour verbose, non-idiomatic patterns
+- On algorithmic tasks (EvalPlus): AI is faster or equal on **73/100 tasks** — no general efficiency gap
 
 ---
 
-<!-- SLIDE 9 — KEY FINDINGS SUMMARY -->
+### Slide 8 — RQ5: Baseline Comparison (1 min)
 
-# Key Findings Summary
+**VibeGuard outperforms Bandit across all metrics**
 
-| # | Finding |
-|---|---------|
-| 1 | All models produce functionally plausible code (~68–72%) |
-| 2 | Security correctness lags functional by 20–36 pp — the **functional-but-insecure gap** |
-| 3 | Newer/larger models are measurably more secure: gpt-4.1 (52%) vs gpt-4o-mini (36%) |
-| 4 | gpt-4.1 produces the **most code smells** (0.84/sample) despite best security score |
-| 5 | VibeGuard F1: **0.291 → 0.470 → 0.636** across three ruleset iterations |
-| 6 | VibeGuard vs Bandit: F1 **0.636 vs 0.224**; corrected F1 **0.777** |
-| 7 | Deterministic repair: 4% trigger rate, **0%** oracle improvement |
-| 8 | LLM repair: 38% trigger rate, **32.1%** oracle improvement |
-| 9 | 60% of FNs are oracle-safe — correct secure code mislabeled by the benchmark |
-| 10 | **Static silence does not imply security** |
+| Tool | Precision | Recall | F1 |
+|------|-----------|--------|----|
+| VibeGuard | **0.774** | **0.539** | **0.636** |
+| Bandit | 0.387 | 0.158 | 0.224 |
+
+- VibeGuard: 41 TP, 12 FP, 35 FN
+- Corrected recall (oracle-safe FNs excluded): **0.745** | Corrected F1: **0.777**
+- SALLM: **99/100** samples detected (99%)
+
+> We evaluate against Bandit — the most widely adopted state-of-the-practice Python security linter — as our representative baseline. Bandit covers security only; VibeGuard additionally covers smells and performance.
 
 ---
 
-<!-- SLIDE 10 — CONCLUSION & FUTURE WORK -->
+### Slide 9 — RQ4: Auto-Fix Results (30s)
 
-# Conclusion & Future Work
+**LLM-based fixer outperforms deterministic fixer — with profiler-validated improvements**
 
-**VibeGuard delivers:**
-- A 25-rule AST security analyzer with F1 = **0.636** (2.8× Bandit), corrected F1 = **0.777**
-- Empirical evidence: passing tests does not mean secure code
-- Dual repair pipeline: deterministic (fast, safe) + LLM (38% trigger, 32.1% oracle gain)
-- Reproducible harness: corpus + pytest oracles + baselines + auto-fix
+| Fixer | Trigger Rate | Oracle Improved |
+|-------|-------------|-----------------|
+| Deterministic | 4% (4/100) | 0% |
+| LLM (gpt-4o-mini) | **38% (38/100)** | **32% (18/56)** |
 
-**Limitations:**
-- Python only; 25 tasks (exploratory, not confirmatory)
-- RQ3 energy study requires Linux + RAPL (macOS linear proxy not credible)
-- CWE-327/918 FNs require semantic / inter-procedural data-flow analysis
+- Top oracle wins: CWE-022 path traversal (5), CWE-113 header injection (4), CWE-502 pickle (3)
+- Fixes span all three dimensions: security patches + smell refactors
+- 9 samples reverted (LLM introduced new findings)
+- **Before/after profiling delta** reported for every fix: CPU time Δ, wall time Δ, memory Δ, energy Δ
+  - Example: fixing `hashlib.md5` → CPU −1.8%, memory −68 B, energy −0.0025 J
+
+---
+
+### Slide 10 — RQ3: Performance of Real AI Code on Algorithmic Tasks (30s)
+
+**AI is generally efficient — but model-specific anti-patterns emerge**
+
+- Corpus: 100 EvalPlus HumanEval+ tasks · 300 samples (100 human + 100 gpt-4o + 100 gpt-4o-mini)
+- Each implementation profiled at 4 input scales (n = 500 → 100 000), 5 timed runs
+
+| Outcome | Tasks |
+|---------|-------|
+| AI faster or equal to human | **73 / 100** |
+| AI slower than human | 27 / 100 |
+| Largest meaningful regression | gpt-4o `strange_sort_list` **5.4×** slower |
+
+- **Root cause**: gpt-4o used `lst.pop(0)` in a while loop — O(n) shift per iteration → O(n²) total
+- gpt-4o-mini used a two-pointer approach → O(n log n) — no regression
+- **New rule PF004** (`list_pop_front_in_loop`) catches this pattern; fired on gpt-4o, silent on gpt-4o-mini
+- Bonus finding: EvalPlus human reference for `rolling_max` is O(n²) — both AI models wrote O(n)
+
+---
+
+## Presenter 3 — Discussion & Conclusion (2.5 min)
+
+---
+
+### Slide 11 — Key Takeaways (1 min)
+
+**Three dimensions, five findings**
+
+- **Security**: AI models pass functional tests but 36–52% produce insecure code
+- **Smells**: GPT-4.1 generates 3× more smells — capability does not guarantee cleanliness
+- **Performance**: AI matched or beat humans on **73/100 tasks** — but gpt-4o introduced a `pop(0)` O(n²) regression (5.4×) caught by new rule PF004
+- **Fix**: LLM auto-fix outperforms deterministic (38% trigger, 32% oracle gain)
+- **Comparison**: VibeGuard F1=0.636 vs Bandit F1=0.224 — purpose-built, multi-dimensional rules matter
+
+---
+
+### Slide 12 — Limitations & Threats to Validity (45s)
+
+**Honest boundaries of our study**
+
+- Static analysis only: cannot catch architectural SSRF or semantic crypto misuse (e.g., SHA-256 for passwords)
+- CWEval oracle is binary — may miss partially fixed vulnerabilities
+- RQ3 profiling on macOS (Apple M-series); no RAPL hardware energy counter — wall time used as proxy
+- EvalPlus human references are not always optimal (rolling_max O(n²)) — complicates AI vs human comparison
+- 2 OpenAI models for RQ3, 4 for RQ1–RQ2 — results may not generalize to open-source LLMs (Llama, Gemini)
+
+---
+
+### Slide 13 — Conclusion & Future Work (45s)
+
+**VibeGuard: the first unified static analyzer for AI-generated Python code**
+
+- Covers **security, quality, and performance** in a single extensible rule engine
+- **53 rules** (40 security + 9 smell + 4 performance PF001–PF004), open-source
+- PF004 (`list_pop_front_in_loop`) motivated by and validated on real AI-generated code
+- Full pipeline: static → dynamic probing → profiled auto-fix → evaluation
+- F1=0.636 vs Bandit F1=0.224 — purpose-built, multi-dimensional rules matter
 
 **Future work:**
-- Expand to SeCodePLT and EvalPlus datasets; more LLM models (Claude, Gemini, Llama)
-- Add Semgrep baseline; data-flow analysis for SSRF/injection chains
-- Higher-fidelity energy measurement with CodeCarbon / RAPL on Linux
+- Semgrep integration for deeper inter-procedural analysis
+- More LLM providers (Llama, Gemini, Claude) across both security and performance corpora
+- Linux + RAPL energy measurement for hardware-accurate RQ3
+- LLM-guided rule synthesis from CVE databases and observed AI coding patterns
 
-> _Security evaluation of AI code must use **outcome-based oracles**, not static counts alone._
+---
+
+## Time Budget
+
+| Presenter | Section | Slides | Time |
+|-----------|---------|--------|------|
+| Presenter 1 | Motivation + Architecture + RQs | 1–4 | 3.5 min (Slide 3 = architecture diagram) |
+| Presenter 2 | RQ1–RQ5 Results | 5–10 | 4.0 min |
+| Presenter 3 | Discussion + Conclusion | 11–13 | 2.5 min |
+| **Total** | | **13 slides** | **10 min** |
+
+---
+
+## Speaker Notes
+
+### Slide 2 (Motivation)
+Open with the observation that developers are increasingly trusting AI tools to write production code — but functional tests alone cannot guarantee that code is safe, clean, or efficient. VibeGuard addresses exactly this gap.
+
+### Slide 3 (Architecture)
+Walk through the diagram top-to-bottom in one pass: *"Code enters at the top, passes through four pillars — static analysis, dynamic probing, auto-fix, and evaluation — each independently usable via CLI."* Note that the input layer now includes EvalPlus HumanEval+ for RQ3 in addition to CWEval and SALLM. Pillar 1 now has 4 performance rules including PF004, which was directly motivated by observing gpt-4o's behaviour on real algorithmic tasks.
+
+### Slide 6 (RQ1)
+Emphasise the GPT-4.1 outlier: despite being the most capable model, it produces the most smells. This challenges the assumption that more powerful models write better-quality code.
+
+### Slide 8 (RQ5)
+Pre-empt the "why only Bandit?" question: *"We chose Bandit as our representative baseline because it is the most widely adopted Python security linter and the closest tool in scope to VibeGuard."*
+
+### Slide 9 (RQ4)
+Point out that the fix pipeline is now fully closed-loop: every fix produces a before/after profiling report (CPU, memory, energy). This directly addresses the proposal's requirement to "validate optimizations using profiling results" — no longer a gap.
+
+### Slide 10 (RQ3)
+Lead with the nuanced finding: *"AI models are generally as efficient as human programmers on algorithmic tasks — they matched or beat the human reference on 73 of 100 tasks."* Then pivot: *"But we found one concrete, reproducible regression. gpt-4o's implementation of strange_sort_list used pop(0) inside a while loop — every pop(0) shifts all remaining elements, turning an O(n log n) problem into O(n²). At n=50,000 this was 5.4× slower than the human solution."* Point out that gpt-4o-mini avoided this entirely. Close with: *"This is exactly the kind of pattern VibeGuard's new PF004 rule now detects — motivated directly by observing real AI-generated code, not by constructing synthetic examples."*
+
+### Slide 13 (Conclusion)
+End with a single strong sentence: *"VibeGuard shows that AI-generated code needs a new class of analyzer — one that understands security, quality, and energy together."*

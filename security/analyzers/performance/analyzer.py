@@ -6,11 +6,13 @@ from security.rules.performance.base import PerformanceRule
 from security.rules.performance.pf001_nested_loop import NestedLoopRule
 from security.rules.performance.pf002_string_concat_loop import StringConcatInLoopRule
 from security.rules.performance.pf003_membership_in_loop import MembershipInLoopRule
+from security.rules.performance.pf004_list_pop_front_in_loop import ListPopFrontInLoopRule
 
 _DEFAULT_RULES: List[PerformanceRule] = [
     NestedLoopRule(),
     StringConcatInLoopRule(),
     MembershipInLoopRule(),
+    ListPopFrontInLoopRule(),
 ]
 
 
