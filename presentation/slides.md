@@ -155,7 +155,6 @@ ASE 2026 | Paris Lodron University of Salzburg
 | Bandit | 0.387 | 0.158 | 0.224 |
 
 - VibeGuard: 41 TP, 12 FP, 35 FN
-- Corrected recall (oracle-safe FNs excluded): **0.745** | Corrected F1: **0.777**
 - SALLM: **99/100** samples detected (99%)
 
 > We evaluate against Bandit — the most widely adopted state-of-the-practice Python security linter — as our representative baseline. Bandit covers security only; VibeGuard additionally covers smells and performance.
@@ -170,11 +169,8 @@ ASE 2026 | Paris Lodron University of Salzburg
 |-------|-------------|-----------------|
 | LLM (gpt-4o-mini) | **38% (38/100)** | **32% (18/56)** |
 
-- Top oracle wins: CWE-022 path traversal (5), CWE-113 header injection (4), CWE-502 pickle (3)
-- Fixes span all three dimensions: security patches + smell refactors
-- 9 samples reverted (LLM introduced new findings)
+- Fixes span security, smells, and performance dimensions
 - **Before/after profiling delta** reported for every fix: CPU time Δ, wall time Δ, memory Δ, energy Δ
-  - Example: fixing `hashlib.md5` → CPU −1.8%, memory −68 B, energy −0.0025 J
 
 ---
 
@@ -188,7 +184,6 @@ ASE 2026 | Paris Lodron University of Salzburg
 | Outcome | Tasks |
 |---------|-------|
 | AI faster or equal to human | **73 / 100** |
-| AI slower than human | 27 / 100 |
 | Largest meaningful regression | gpt-4o `strange_sort_list` **5.4×** slower |
 
 - **Root cause**: gpt-4o used `lst.pop(0)` in a while loop — O(n) shift per iteration → O(n²) total
