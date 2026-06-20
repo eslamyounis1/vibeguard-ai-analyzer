@@ -86,7 +86,7 @@ class SqlInjectionProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json, sqlite3
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _conn = sqlite3.connect(":memory:")
                 _cur = _conn.cursor()
@@ -162,7 +162,7 @@ class PathTraversalProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json, os, tempfile, pathlib, builtins
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"path_traversal_probe": "run"}}
                 _opened = []
@@ -219,7 +219,7 @@ class CommandInjectionProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json, subprocess, os, tempfile
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"cmd_injection_probe": "run"}}
                 _marker = tempfile.mktemp(prefix="vg_cmd_probe_")
@@ -268,7 +268,7 @@ class DeserializationProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json, pickle, io
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"deser_probe": "run"}}
                 _safe_data = pickle.dumps({{"key": "value"}})
@@ -322,7 +322,7 @@ class ReDoSProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json, time, re
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"redos_probe": "run"}}
                 _evil_input = "a" * 30 + "!"  # classic ReDoS trigger
@@ -367,7 +367,7 @@ class InputValidationProbe(SecurityProbe):
             harness = textwrap.dedent(f"""
                 import sys, json
                 from urllib.parse import urlparse
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"input_validation_probe": "run"}}
                 # Legitimate URL
@@ -417,7 +417,7 @@ class XssProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"xss_probe": "run"}}
                 _payload = "<script>alert(1)</script>"
@@ -467,7 +467,7 @@ class HeaderInjectionProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"header_injection_probe": "run"}}
                 _safe_val = "application/json"
@@ -519,7 +519,7 @@ class LogInjectionProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json, io, logging
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"log_injection_probe": "run"}}
                 # Capture log output
@@ -577,7 +577,7 @@ class WeakKeyProbe(SecurityProbe):
         try:
             harness = textwrap.dedent(f"""
                 import sys, json
-                exec(open({repr(src_path)}, encoding='utf-8').read())
+                exec(open({repr(src_path)}, encoding='utf-8').read(), globals())
 
                 _result = {{"weak_key_probe": "run"}}
                 try:
