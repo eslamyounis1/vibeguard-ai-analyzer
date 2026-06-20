@@ -27,6 +27,7 @@ from security.rules.security.vg021_log_injection import LogInjectionRule
 from security.rules.security.vg022_http_header_injection import HttpHeaderInjectionRule
 from security.rules.security.vg023_weak_rng_seed import WeakRngSeedRule
 from security.rules.security.vg024_redos import ReDoSRule
+from security.rules.security.vg024_regex_dos import RegexDosRule
 from security.rules.security.vg025_url_validation_bypass import UrlValidationBypassRule
 from security.rules.security.vg026_xxe import XxeRule
 from security.rules.security.vg027_insecure_cookie import InsecureCookieRule
@@ -72,6 +73,7 @@ def default_security_rules(enable_taint: bool = True) -> List[SecurityRule]:
         HttpHeaderInjectionRule(),
         WeakRngSeedRule(),
         ReDoSRule(),
+        RegexDosRule(),
         UrlValidationBypassRule(),
         XxeRule(),
         InsecureCookieRule(),

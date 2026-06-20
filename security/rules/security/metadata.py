@@ -181,6 +181,13 @@ _METADATA_BY_RULE: dict[str, SecurityMetadata] = {
         owasp="A04:2021 Insecure Design",
         impact="Crafted input can cause catastrophic backtracking, leading to denial of service.",
     ),
+    "regex_dos": SecurityMetadata(
+        confidence=Confidence.MEDIUM,
+        risk_score=68,
+        cwe="CWE-400",
+        owasp="A04:2021 Insecure Design",
+        impact="User-supplied regex patterns can trigger catastrophic backtracking, making the process unresponsive.",
+    ),
     "url_validation_bypass": SecurityMetadata(
         confidence=Confidence.HIGH,
         risk_score=75,

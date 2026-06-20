@@ -39,34 +39,24 @@ def analyze_and_profile(
     perf_findings = [f for f in result.findings if f.category == Category.PERFORMANCE]
 
     dynamic: Optional[Dict[str, Any]] = None
-    corroboration: Dict[str, Any] = {
-        "static_performance_findings": len(perf_findings),
-        "measured": None,
-        "note": "Dynamic profiling not run.",
-    }
+    measured_wall_ms: Optional[float] = None
 
     if run_dynamic:
         dynamic = measure_code(code, energy_backend=energy_backend)
         totals = _totals(dynamic)
-        if totals is not None:
-            corroboration["measured"] = {
-                "cpu_time_seconds": totals.get("cpu_time_seconds"),
-                "wall_time_seconds": totals.get("wall_time_seconds"),
-                "energy_joules_estimate": totals.get("energy_joules_estimate"),
-                "memory_peak_bytes": totals.get("memory_peak_bytes"),
-            }
-            if perf_findings:
-                corroboration["note"] = (
-                    f"{len(perf_findings)} static performance finding(s) detected; "
-                    "runtime cost measured for corroboration."
-                )
-            else:
-                corroboration["note"] = "No static performance findings; runtime cost measured as baseline."
-        else:
-            corroboration["note"] = (
-                "Code could not be executed for profiling: "
-                f"{dynamic.get('error_message') or dynamic.get('error_type')}"
-            )
+        if totals is not None and totals.get("wall_time_seconds") is not None:
+            measured_wall_ms = round(totals["wall_time_seconds"] * 1000, 3)
+
+    # Build per-finding corroboration array matching the TypeScript interface:
+    # Array<{ rule_id: string; confirmed: boolean; measured_ms?: number }>
+    corroboration = [
+        {
+            "rule_id": f.rule_id,
+            "confirmed": measured_wall_ms is not None,
+            "measured_ms": measured_wall_ms,
+        }
+        for f in perf_findings
+    ]
 
     return {
         "static": static,
@@ -108,9 +98,9 @@ def compare_fix(
     comparison: Dict[str, Any] = {
         "fix": fix.to_dict(),
         "security": {
-            "findings_before": fix.findings_before,
-            "findings_after": fix.findings_after,
-            "findings_removed": max(0, fix.findings_before - fix.findings_after),
+            "findings_before": fix.findings_before_list,
+            "findings_after": fix.findings_after_list,
+            "delta": max(0, fix.findings_before - fix.findings_after),
         },
         "performance": None,
         "behavior_preserved": None,
@@ -165,6 +155,12 @@ def compare_fix(
             before_totals.get("energy_joules_estimate"), after_totals.get("energy_joules_estimate")
         )
         comparison["performance"] = {
+            # Flat fields matching the TypeScript CompareResponse.performance interface
+            "cpu_before": before_totals.get("cpu_time_seconds"),
+            "cpu_after": after_totals.get("cpu_time_seconds"),
+            "energy_before": before_totals.get("energy_joules_estimate"),
+            "energy_after": after_totals.get("energy_joules_estimate"),
+            # Detailed deltas for research pipeline consumers
             "cpu_time_seconds": _metric_delta(
                 before_totals.get("cpu_time_seconds"), after_totals.get("cpu_time_seconds")
             ),

@@ -334,3 +334,183 @@ class TestVG036XmlInjection:
         code = "xml_str = '<user>alice</user>'"
         tree, lines = _parse(code)
         assert XmlInjectionRule().check(tree, "t.py", lines) == []
+
+
+# ---------------------------------------------------------------------------
+# VG028 — CSRF Missing Protection
+# ---------------------------------------------------------------------------
+
+class TestVG028Csrf:
+    def test_detects_post_route_without_csrf(self):
+        code = (
+            "@app.route('/submit', methods=['POST'])\n"
+            "def submit():\n"
+            "    return 'ok'\n"
+        )
+        tree, lines = _parse(code)
+        findings = CsrfRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+        assert findings[0].rule_id == "csrf_missing_protection"
+
+    def test_detects_delete_route(self):
+        code = (
+            "@app.delete('/item')\n"
+            "def delete_item():\n"
+            "    return 'deleted'\n"
+        )
+        tree, lines = _parse(code)
+        findings = CsrfRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+
+    def test_no_finding_for_get_route(self):
+        code = (
+            "@app.route('/read', methods=['GET'])\n"
+            "def read():\n"
+            "    return 'data'\n"
+        )
+        tree, lines = _parse(code)
+        assert CsrfRule().check(tree, "t.py", lines) == []
+
+    def test_no_finding_for_plain_function(self):
+        code = "def helper():\n    return 42\n"
+        tree, lines = _parse(code)
+        assert CsrfRule().check(tree, "t.py", lines) == []
+
+
+# ---------------------------------------------------------------------------
+# VG030 — Cleartext Credentials
+# ---------------------------------------------------------------------------
+
+class TestVG030CleartextCredentials:
+    def test_detects_password_write(self):
+        code = "db.execute(password)\n"
+        tree, lines = _parse(code)
+        findings = CleartextCredentialsRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+        assert findings[0].rule_id == "cleartext_credentials"
+
+    def test_detects_token_set(self):
+        code = "store.set(token)\n"
+        tree, lines = _parse(code)
+        findings = CleartextCredentialsRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+
+    def test_no_finding_for_non_credential(self):
+        code = "db.execute(username)\n"
+        tree, lines = _parse(code)
+        assert CleartextCredentialsRule().check(tree, "t.py", lines) == []
+
+
+# ---------------------------------------------------------------------------
+# VG032 — None Dereference
+# ---------------------------------------------------------------------------
+
+class TestVG032NoneDereference:
+    def test_detects_unchecked_find_access(self):
+        code = (
+            "user = db.find(id)\n"
+            "print(user.name)\n"
+        )
+        tree, lines = _parse(code)
+        findings = NoneDereferenceRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+        assert findings[0].rule_id == "none_dereference"
+
+    def test_detects_dict_get_access(self):
+        code = (
+            "item = data.get('key')\n"
+            "print(item.value)\n"
+        )
+        tree, lines = _parse(code)
+        findings = NoneDereferenceRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+
+    def test_no_finding_for_direct_assignment(self):
+        code = (
+            "user = User(id=1)\n"
+            "print(user.name)\n"
+        )
+        tree, lines = _parse(code)
+        assert NoneDereferenceRule().check(tree, "t.py", lines) == []
+
+
+# ---------------------------------------------------------------------------
+# VG033 — Unrestricted File Upload
+# ---------------------------------------------------------------------------
+
+class TestVG033UnrestrictedUpload:
+    def test_detects_file_save_from_upload(self):
+        # obj.file.save() — obj.attr "file" is in _UPLOAD_SOURCES
+        code = "request.file.save(path)\n"
+        tree, lines = _parse(code)
+        findings = UnrestrictedUploadRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+        assert findings[0].rule_id == "unrestricted_file_upload"
+
+    def test_detects_upload_var_save(self):
+        code = (
+            "uploaded_file = request.files['f']\n"
+            "uploaded_file.save(dest)\n"
+        )
+        tree, lines = _parse(code)
+        findings = UnrestrictedUploadRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+
+    def test_no_finding_for_regular_write(self):
+        code = "out.write(data)\n"
+        tree, lines = _parse(code)
+        assert UnrestrictedUploadRule().check(tree, "t.py", lines) == []
+
+
+# ---------------------------------------------------------------------------
+# VG037 — Improper Output Encoding
+# ---------------------------------------------------------------------------
+
+class TestVG037ImproperOutputEncoding:
+    def test_detects_response_with_fstring(self):
+        code = "return Response(f'Hello {name}')\n"
+        tree, lines = _parse(code)
+        findings = ImproperOutputEncodingRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+        assert findings[0].rule_id == "improper_output_encoding"
+
+    def test_detects_response_with_dynamic_var(self):
+        code = "return Response(body)\n"
+        tree, lines = _parse(code)
+        findings = ImproperOutputEncodingRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+
+    def test_no_finding_for_static_response(self):
+        code = "return Response('Hello world')\n"
+        tree, lines = _parse(code)
+        assert ImproperOutputEncodingRule().check(tree, "t.py", lines) == []
+
+
+# ---------------------------------------------------------------------------
+# VG040 — Divide by Zero (user-controlled divisor)
+# ---------------------------------------------------------------------------
+
+class TestVG040DivideByZero:
+    def test_detects_division_by_user_int(self):
+        code = (
+            "n = int(request.args.get('n'))\n"
+            "result = 100 / n\n"
+        )
+        tree, lines = _parse(code)
+        findings = DivideByZeroRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+        assert findings[0].rule_id == "divide_by_zero"
+
+    def test_detects_modulo_by_user_value(self):
+        code = (
+            "divisor = int(request.form.get('d'))\n"
+            "remainder = value % divisor\n"
+        )
+        tree, lines = _parse(code)
+        findings = DivideByZeroRule().check(tree, "t.py", lines)
+        assert len(findings) >= 1
+
+    def test_no_finding_for_constant_divisor(self):
+        code = "result = total / 100\n"
+        tree, lines = _parse(code)
+        assert DivideByZeroRule().check(tree, "t.py", lines) == []

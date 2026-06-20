@@ -31,16 +31,20 @@ class Scanner:
         result.scanned_files = len(files)
 
         for file_path in files:
-            findings, error = self._scan_file(file_path)
+            findings, error, source = self._scan_file(file_path)
             if error:
                 result.parse_errors.append(error)
                 continue
+            file_result = ScanResult()
             for finding in findings:
                 if self.min_severity and not severity_gte(finding.severity, self.min_severity):
                     continue
                 if not self.include_snippet:
                     finding.snippet = None
-                result.findings.append(finding)
+                file_result.findings.append(finding)
+            if self.dynamic_verify and source:
+                self._run_dynamic_verification(file_result, source)
+            result.findings.extend(file_result.findings)
 
         from security.models.scoring import compute_risk_score
         result.exploitability_score = compute_risk_score(result.findings)
@@ -92,20 +96,20 @@ class Scanner:
         findings = self._run_all(tree, file_path, source_lines)
         return findings, None
 
-    def _scan_file(self, file_path: str) -> Tuple[List[Finding], Optional[ParseError]]:
+    def _scan_file(self, file_path: str) -> Tuple[List[Finding], Optional[ParseError], str]:
         try:
             source = Path(file_path).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            return [], ParseError(file=file_path, message=str(exc))
+            return [], ParseError(file=file_path, message=str(exc)), ""
 
         try:
             tree = ast.parse(source, filename=file_path)
         except SyntaxError as exc:
-            return [], ParseError(file=file_path, message=f"SyntaxError: {exc}")
+            return [], ParseError(file=file_path, message=f"SyntaxError: {exc}"), ""
 
         source_lines = source.splitlines()
         findings = self._run_all(tree, file_path, source_lines)
-        return findings, None
+        return findings, None, source
 
     def _run_all(self, tree: ast.AST, file_path: str, source_lines: List[str]) -> List[Finding]:
         findings: List[Finding] = []

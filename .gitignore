@@ -27,3 +27,4 @@ results/
 
 # Downloaded third-party datasets (large; fetch via scripts, do not commit)
 dataset/
+findings/

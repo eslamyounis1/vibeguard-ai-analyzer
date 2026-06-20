@@ -1,5 +1,7 @@
 """Tests for sandbox metric correctness and the orchestration pipeline."""
 
+import pytest
+
 from orchestrator.pipeline import analyze_and_profile, compare_fix
 from sandbox.sandbox_runner import run_user_code
 
@@ -57,18 +59,27 @@ print(len(f(list(range(80)))))
 """
         report = analyze_and_profile(code)
         corr = report["performance_corroboration"]
-        assert corr["static_performance_findings"] >= 1
-        assert corr["measured"] is not None
-        assert corr["measured"]["cpu_time_seconds"] is not None
+        # performance_corroboration is now an array of per-finding entries
+        assert isinstance(corr, list)
+        assert len(corr) >= 1
+        assert "rule_id" in corr[0]
+        assert "confirmed" in corr[0]
 
     def test_compare_fix_reports_findings_removed(self):
         code = "import hashlib\nprint(hashlib.md5(b'x').hexdigest())\n"
         report = compare_fix(code, run_dynamic=False)
-        assert report["security"]["findings_removed"] >= 1
+        assert report["security"]["delta"] >= 1
         assert report["fix"]["changed"] is True
 
     def test_compare_fix_detects_behavior_change(self):
         # md5 -> sha256 changes printed output, so behavior is not preserved.
+        # On FIPS-enabled systems hashlib.md5() itself raises ValueError so the
+        # sandbox returns ok=False and behavior_preserved stays None — skip there.
         code = "import hashlib\nprint(hashlib.md5(b'x').hexdigest())\n"
+        try:
+            import hashlib
+            hashlib.md5(b"x")
+        except ValueError:
+            pytest.skip("hashlib.md5 unavailable (FIPS mode)")
         report = compare_fix(code, run_dynamic=True)
         assert report["behavior_preserved"] is False
