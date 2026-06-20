@@ -13,7 +13,7 @@ from __future__ import annotations
 import ast
 import difflib
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
 
 from security.core.scanner import Scanner
 from fixers.base import Edit, apply_edits, compute_line_offsets
@@ -42,6 +42,8 @@ class FixResult:
     findings_after_list: List[dict] = field(default_factory=list)
     safe: bool = True
     note: Optional[str] = None
+    profile_before: Optional[Dict[str, Any]] = None
+    profile_after: Optional[Dict[str, Any]] = None
 
     @property
     def changed(self) -> bool:
@@ -56,8 +58,49 @@ class FixResult:
         )
         return "".join(diff)
 
-    def to_dict(self) -> dict:
+    def perf_delta(self) -> Optional[Dict[str, Any]]:
+        """Return before/after performance delta, or None if profiling was not run."""
+        if not self.profile_before or not self.profile_after:
+            return None
+        b = self.profile_before
+        a = self.profile_after
+        if not b.get("ok") or not a.get("ok"):
+            return None
+        bt, at = b["totals"], a["totals"]
+
+        def _delta(key: str) -> Optional[float]:
+            bv, av = bt.get(key), at.get(key)
+            if bv is None or av is None:
+                return None
+            return round(av - bv, 6)
+
+        def _pct(key: str) -> Optional[float]:
+            bv = bt.get(key)
+            if not bv:
+                return None
+            dv = _delta(key)
+            return round(dv / bv * 100, 1) if dv is not None else None
+
         return {
+            "cpu_time_before": bt.get("cpu_time_seconds"),
+            "cpu_time_after": at.get("cpu_time_seconds"),
+            "cpu_time_delta": _delta("cpu_time_seconds"),
+            "cpu_time_pct": _pct("cpu_time_seconds"),
+            "wall_time_before": bt.get("wall_time_seconds"),
+            "wall_time_after": at.get("wall_time_seconds"),
+            "wall_time_delta": _delta("wall_time_seconds"),
+            "wall_time_pct": _pct("wall_time_seconds"),
+            "memory_peak_before": bt.get("memory_peak_bytes"),
+            "memory_peak_after": at.get("memory_peak_bytes"),
+            "memory_peak_delta": _delta("memory_peak_bytes"),
+            "energy_before": bt.get("energy_joules_estimate"),
+            "energy_after": at.get("energy_joules_estimate"),
+            "energy_delta": _delta("energy_joules_estimate"),
+            "energy_model": bt.get("energy_model"),
+        }
+
+    def to_dict(self) -> dict:
+        d = {
             "changed": self.changed,
             "safe": self.safe,
             "note": self.note,
@@ -66,11 +109,25 @@ class FixResult:
             "applied": [a.to_dict() for a in self.applied],
             "fixed_code": self.fixed_code,
         }
+        delta = self.perf_delta()
+        if delta is not None:
+            d["perf_delta"] = delta
+        return d
 
 
-def fix_source(code: str, filename: str = "<code>") -> FixResult:
+def _run_profiler(code: str) -> Optional[Dict[str, Any]]:
+    """Run sandbox measure_code; returns result dict or None on import failure."""
+    try:
+        from sandbox.profiler import measure_code  # noqa: PLC0415
+        return measure_code(code)
+    except Exception:
+        return None
+
+
+def fix_source(code: str, filename: str = "<code>", with_profile: bool = False) -> FixResult:
     scanner = Scanner()
     before = scanner.scan_source(code, filename)
+    profile_before = _run_profiler(code) if with_profile else None
 
     if not before.ok:
         parse_list = [f.to_dict() for f in before.findings]
@@ -124,6 +181,7 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
             findings_after_list=before_list,
             safe=True,
             note="No auto-fixable findings.",
+            profile_before=profile_before,
         )
 
     fixed_code = apply_edits(code, edits)
@@ -147,6 +205,7 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
         safe = False
 
     after_list = [f.to_dict() for f in after.findings] if after.ok else before_list
+    profile_after = _run_profiler(fixed_code) if with_profile and fixed_code != code else None
 
     return FixResult(
         original_code=code,
@@ -158,4 +217,6 @@ def fix_source(code: str, filename: str = "<code>") -> FixResult:
         findings_after_list=after_list,
         safe=safe,
         note=note,
+        profile_before=profile_before,
+        profile_after=profile_after,
     )

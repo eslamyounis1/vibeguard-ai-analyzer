@@ -89,7 +89,7 @@ ASE 2026 | Paris Lodron University of Salzburg
 |----|-----------|----------|
 | RQ1 | Security + Quality | How many vulnerabilities and smells does VibeGuard find in AI code? |
 | RQ2 | Comparison | Does AI code have more issues than human-written code? |
-| RQ3 | Performance | Do AI models naturally introduce performance anti-patterns on algorithmic tasks? |
+| RQ3 | Performance | How does the runtime efficiency of AI-generated code compare to human-written code on algorithmic tasks, and can VibeGuard detect observed inefficiencies? |
 | RQ4 | Fix | How effective is auto-fix at resolving detected issues? |
 | RQ5 | Baseline | How does VibeGuard compare to state-of-the-practice static analyzers? |
 
