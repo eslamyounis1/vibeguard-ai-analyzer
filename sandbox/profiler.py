@@ -19,7 +19,7 @@ from typing import Any, Dict
 _RUNNER_PATH = Path(__file__).resolve().parent / "sandbox_runner.py"
 
 DEFAULT_CPU_SECONDS = 10
-DEFAULT_MEMORY_MB = 512
+DEFAULT_MEMORY_MB = 2048  # Python 3.13 virtual address space footprint is larger
 DEFAULT_TIMEOUT_SECONDS = 20
 
 

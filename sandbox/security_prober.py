@@ -33,7 +33,7 @@ def _run_harness(harness_code: str) -> Dict[str, Any]:
     result = profile_code(
         harness_code,
         cpu_seconds=5,
-        memory_mb=128,
+        memory_mb=2048,  # Python 3.13 virtual address space footprint is larger
         timeout_seconds=_TIMEOUT,
         mode="measure",
     )
