@@ -101,6 +101,7 @@ def compare_fix(
             "findings_before": fix.findings_before_list,
             "findings_after": fix.findings_after_list,
             "delta": max(0, fix.findings_before - fix.findings_after),
+            "findings_removed": max(0, fix.findings_before - fix.findings_after),
         },
         "performance": None,
         "behavior_preserved": None,

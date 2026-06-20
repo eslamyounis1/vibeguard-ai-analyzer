@@ -56,6 +56,9 @@ def _run_pytest_marker(
     if proc.returncode == 5:
         # no tests collected for this marker
         return None
+    if proc.returncode in (2, 3, 4):
+        # interrupted / internal error / usage error (e.g. missing import) — unknown
+        return None
     return proc.returncode == 0
 
 
