@@ -40,8 +40,9 @@ ASE 2026 | Paris Lodron University of Salzburg
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        INPUT LAYER                              │
-│         AI-generated Python code  +  Human reference code      │
-│         (CWEval · SALLM · EvalPlus HumanEval+ 300 samples)     │
+│                   AI-generated Python code                      │
+│         (CWEval · SALLM · EvalPlus HumanEval+ — 300 samples)   │
+│      Human references used for evaluation comparison only       │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
             ┌───────────────▼───────────────┐
