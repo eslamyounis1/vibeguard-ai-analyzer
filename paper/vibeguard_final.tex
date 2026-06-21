@@ -51,7 +51,13 @@ restores both functionality and security for 77 of 86 eligible samples
 (89.5\%), versus 19 (22.1\%) for deterministic repair, while also causing 38
 secure-to-insecure regressions outside the eligible subset. The results show
 that static detection, behavioral oracles, and post-repair validation are
-complementary rather than interchangeable.
+complementary rather than interchangeable. A performance rule validation on 40
+synthetic and 300 EvalPlus samples confirms that flagged anti-patterns carry
+statistically significant runtime cost (Cliff's $\delta=0.90$,
+$p=1.2\times10^{-6}$), while AI-generated algorithmic code is not
+significantly slower than human references overall (Mann-Whitney $p=0.97$);
+the one structural regression identified by the rules also shows the largest
+measured slowdown (5.4$\times$) in the corpus.
 \end{abstract}
 
 \keywords{large language models, secure code generation, static analysis,
@@ -88,7 +94,7 @@ pipeline preserves model responses and metadata, runs independent behavioral
 oracles, compares three analyzers in normalized CWE space, and uses repeated
 samples per task rather than pooling unrelated tasks for pass@k estimates.
 
-This paper answers six research questions:
+This paper answers seven research questions:
 
 \begin{description}
   \item[RQ1:] How often do current models produce functional, secure, and
@@ -103,6 +109,9 @@ This paper answers six research questions:
   without breaking functionality?
   \item[RQ6:] Do the detection results generalize to SALLM, SecurityEval, and
   benign algorithmic references from EvalPlus?
+  \item[RQ7:] Do VibeGuard's performance rules identify anti-patterns with
+  measurable runtime cost, and is AI-generated algorithmic code significantly
+  slower than human references?
 \end{description}
 
 Our main contributions are:
@@ -114,7 +123,11 @@ Our main contributions are:
   \item an oracle-centered evaluation using exact-CWE metrics, task-clustered
   confidence intervals, paired significance tests, and secure@k estimates; and
   \item an empirical characterization of both repair success and repair harm,
-  including semantic regressions that static post-checks fail to detect.
+  including semantic regressions that static post-checks fail to detect; and
+  \item a performance rule validation on a synthetic corpus and 300 EvalPlus
+  samples, showing that flagged anti-patterns carry large runtime costs while
+  AI-generated algorithmic code is not significantly slower than human
+  references overall.
 \end{itemize}
 
 \section{Background and Related Work}
@@ -489,6 +502,37 @@ safe cases are both non-confirmations. Accuracy is computed over all six
 variants. This small balanced design is a component test, not a population
 estimate, so we report every rule-level result rather than only the mean.
 
+\subsection{Performance Rule Validation}
+\label{sec:perf-method}
+
+We evaluate VibeGuard's three performance rules on two separate corpora.
+
+\textbf{Synthetic validation corpus.} We construct 40 short algorithmic
+Python functions: 20 that trigger at least one of the three rules
+(PF001~nested comprehension, PF002~string concatenation in a loop,
+PF003~linear-container membership in a loop) and 20 semantically equivalent
+clean variants. Smelly variants use input sizes chosen to make the anti-pattern
+expensive: nested loops with $n\in[400,2200]$, string-concatenation loops with
+$n\in[8\,000,24\,000]$, and membership checks with $n\in[100\,000,300\,000]$.
+Each function is timed with 10 runs and 2 warm-up runs in an isolated
+subprocess. On macOS without \texttt{sudo} access, direct joule readings from
+\texttt{powermetrics} are unavailable; we use wall-clock time (and a linear
+CPU-count proxy for energy) as the runtime proxy. We compare the two groups
+with Mann-Whitney $U$ and Cliff's $\delta$.
+
+\textbf{EvalPlus real-AI corpus.} We select 100 HumanEval+ tasks and generate
+two AI solutions each from \path{gpt-4o-2024-08-06} and
+\path{gpt-4o-mini-2024-07-18} at temperature 0.2, yielding 300 samples (100
+human references, 100 GPT-4o, 100 GPT-4o-mini). For each task we choose an
+input scale that produces at least 1 ms of wall time for a correct solution.
+Tasks are profiled at four input scales with five timed executions and one
+warm-up. We define a task as ``AI slower'' when the mean AI wall time exceeds
+the human reference mean and report the binary count and Mann-Whitney $U$
+across all per-task ratios (AI mean / human mean). We additionally record
+whether rule PF004 (\texttt{list.pop(0)} inside a loop, a PF004 extension
+added after the synthetic study) fires on any sample and check agreement with
+measured slowdown.
+
 \subsection{Repair Protocol}
 
 Repair runs on all 500 generated samples. The primary eligible subset contains
@@ -822,6 +866,83 @@ On EvalPlus, VibeGuard and Bandit each alert on four of 164 canonical solutions
 ordinary algorithmic code, but they are not definitive false-positive rates:
 EvalPlus establishes functional correctness, not exhaustive security labels.
 
+\subsection{RQ7: Performance Rule Validation}
+
+\textbf{Synthetic corpus.}
+Table~\ref{tab:perf-synthetic} summarizes the runtime comparison. Code samples
+flagged by a performance rule have a mean wall time of 0.783~s versus 0.012~s
+for clean variants. The Mann-Whitney test is highly significant
+($U=20$, $p=1.2\times10^{-6}$) and the effect size is large (Cliff's
+$\delta=0.90$). The nested-loop pattern dominates the energy gap; string
+concatenation and membership variants produce smaller but still
+measurable differences. These results confirm that the three rules identify
+anti-patterns with genuine runtime cost, not only stylistic debt.
+
+\begin{table}[t]
+\caption{Synthetic corpus: runtime of samples with and without a performance
+finding. Energy estimate uses a linear wall-time proxy (no \texttt{sudo}
+required).}
+\label{tab:perf-synthetic}
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+Group & Mean wall time (s) & Mean energy proxy (J) \\
+\midrule
+With perf.\ finding ($n=20$) & 0.783 & 39.08 \\
+Without perf.\ finding ($n=20$) & 0.012 & 0.59 \\
+\midrule
+Cliff's $\delta$ & \multicolumn{2}{r}{0.90 (large)} \\
+Mann-Whitney $p$ & \multicolumn{2}{r}{$1.2\times10^{-6}$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{EvalPlus real-AI corpus.}
+Table~\ref{tab:perf-evalplus} summarizes task-level outcomes. On 73 of 100
+tasks, the mean AI wall time is equal to or lower than the human reference,
+and the overall AI-vs-human ratio distribution is not significantly different
+from parity (Mann-Whitney $U=148244$, $p=0.97$). This shows that LLM-generated
+algorithmic code does not carry a systematic runtime penalty at the population
+level. Several apparent outliers (e.g.\ HumanEval/147, ratio~$>2\times10^6$)
+are measurement artifacts where the human reference executes in near-zero time
+at the tested input scale.
+
+Among the 27 tasks where AI is slower, HumanEval/70 (\texttt{strange\_sort\_list})
+is the most meaningful real regression: GPT-4o's solution is 5.4$\times$
+slower than the human reference because it calls \texttt{lst.pop(0)} inside a
+\texttt{while} loop, inducing $O(n^2)$ behavior. VibeGuard's rule PF004
+(\texttt{list\_pop\_front\_in\_loop}) fires on both GPT-4o samples for this
+task and is silent on GPT-4o-mini, which selected a two-pointer approach. Rule
+and runtime measurement thus agree: the rule is neither a false positive nor
+a false negative on this pair. In the other direction, HumanEval/9
+(\texttt{rolling\_max}) reveals a human-reference $O(n^2)$ implementation;
+both AI models write the $O(n)$ solution and execute approximately 800$\times$
+faster. No performance rule fires on the CWEval security tasks, which contain
+only short function bodies without looping anti-patterns. This absence is
+appropriate: the rules would produce noise on those tasks.
+
+\begin{table}[t]
+\caption{EvalPlus real-AI performance study ($n=300$ samples, 100 tasks).
+``AI slower'' counts tasks where mean AI wall time exceeds human mean.}
+\label{tab:perf-evalplus}
+\centering
+\small
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Tasks with AI $\leq$ human wall time & 73 / 100 \\
+Tasks with AI $>$ human wall time & 27 / 100 \\
+Mann-Whitney $p$ (task-level ratios) & 0.97 \\
+Largest real regression (HumanEval/70) & 5.4$\times$ (GPT-4o) \\
+PF004 fires on GPT-4o HumanEval/70 & yes (2 hits) \\
+PF004 fires on GPT-4o-mini HumanEval/70 & no \\
+HumanEval/9 AI speedup vs.\ human & $\approx$800$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Discussion}
 
 \subsection{Functionality Is Not Security}
@@ -908,6 +1029,27 @@ that a safe edge case was preserved. Repair evaluation must therefore include
 the already-secure population, not only vulnerable inputs on which improvement
 is possible. Otherwise a method can appear highly successful while damaging
 code that needed no semantic rewrite.
+
+\subsection{Performance Rules Are Validated But Rarely Fire on Security Tasks}
+
+The EvalPlus study provides the key result: at the population
+level, AI-generated algorithmic code is not slower than human references
+($p=0.97$). This is partly explained by cases where the human reference itself
+contains a worse algorithm (HumanEval/9). At the same time, PF004 correctly
+identifies the one meaningful structural regression in the corpus: GPT-4o's
+\texttt{pop(0)}-in-loop pattern on HumanEval/70. The combination of a
+population-level null and a rule-level true positive is encouraging. It
+suggests that the rules have sufficient precision not to over-fire on typical
+algorithmic code while still detecting genuine structural inefficiency when
+present.
+
+The absence of any performance finding on the CWEval security corpus is also
+informative. Security-oriented prompts elicit short, function-scoped
+implementations without the looping structures that trigger performance rules.
+A combined tool should therefore not treat zero performance findings as
+evidence of efficiency; it means only that the analyzed code does not contain
+the covered anti-patterns at the tested input size. A richer performance
+evaluation would require repository-scale code or explicitly algorithmic tasks.
 
 \subsection{Recommended End-to-End Use}
 
@@ -996,6 +1138,15 @@ which produces wide task-bootstrap intervals. The LLM repair model is also from
 the same provider family as the generators. The large regression count prevents
 generalizing the eligible-subset success rate to arbitrary code.
 
+\textbf{Performance validity.} The synthetic performance corpus is constructed
+and labeled by the authors; it is a component test, not a population sample of
+AI-generated code. Energy readings on macOS ARM require \texttt{sudo} for
+hardware counters, so wall-clock time and a linear proxy are used in place of
+direct joule measurements. The EvalPlus timing comparison depends on a single
+representative input scale per task; a different scale could alter individual
+ratios without changing the population-level null result. The performance study
+does not test how perf findings interact with security or repair outcomes.
+
 \section{Reproducibility and Artifacts}
 
 The repository contains pinned research dependencies, dataset revisions,
@@ -1047,9 +1198,14 @@ target-CWE detection and generalizes better on two independent insecure-code
 datasets. Dynamic probes provide a small high-precision confirmed subset, while
 the static score remains useful for ranking. LLM repair is highly effective on
 the narrowly eligible subset but causes many regressions elsewhere, making
-independent tests indispensable. Secure AI-assisted development should therefore
-treat generation, analysis, confirmation, and repair as separate stages with
-separate evidence, not as a single model verdict.
+independent tests indispensable. A complementary performance study shows that
+flagged anti-patterns carry large, statistically significant runtime costs on a
+synthetic corpus, while AI-generated algorithmic code is not significantly
+slower than human references at the population level; the tool correctly
+identifies the one structural regression that produces a 5.4$\times$ measured
+slowdown. Secure AI-assisted development should therefore treat generation,
+analysis, confirmation, and repair as separate stages with separate evidence,
+not as a single model verdict.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}

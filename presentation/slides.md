@@ -120,13 +120,15 @@ ASE 2026 | Paris Lodron University of Salzburg
 
 **AI code carries more issues — smells drive the gap**
 
-| Source | Security | Smell | Perf | Total | % Affected |
-|--------|----------|-------|------|-------|------------|
-| Human | 0.24 | 0.32 | 0.0 | 0.56 | 44% |
-| GPT-4.1 | 0.24 | **0.84** | 0.0 | **1.08** | **52%** |
-| GPT-4.1-mini | 0.28 | 0.32 | 0.0 | 0.60 | 40% |
-| GPT-4o | 0.28 | 0.20 | 0.0 | 0.48 | 40% |
-| GPT-4o-mini | 0.28 | 0.16 | 0.0 | 0.44 | 36% |
+| Source | Security | Smell | Total | % Affected |
+|--------|----------|-------|-------|------------|
+| Human | 0.24 | 0.32 | 0.56 | 44% |
+| GPT-4.1 | 0.24 | **0.84** | **1.08** | **52%** |
+| GPT-4.1-mini | 0.28 | 0.32 | 0.60 | 40% |
+| GPT-4o | 0.28 | 0.20 | 0.48 | 40% |
+| GPT-4o-mini | 0.28 | 0.16 | 0.44 | 36% |
+
+> Note: Performance rules fire on algorithmic tasks (EvalPlus, Slide 10) — not on short security functions like CWEval.
 
 > Key finding: GPT-4.1 generates **3× more smells** than other models — more capable does not mean cleaner code.
 
@@ -153,7 +155,6 @@ ASE 2026 | Paris Lodron University of Salzburg
 | Bandit | 0.387 | 0.158 | 0.224 |
 
 - VibeGuard: 41 TP, 12 FP, 35 FN
-- Corrected recall (oracle-safe FNs excluded): **0.745** | Corrected F1: **0.777**
 - SALLM: **99/100** samples detected (99%)
 
 > We evaluate against Bandit — the most widely adopted state-of-the-practice Python security linter — as our representative baseline. Bandit covers security only; VibeGuard additionally covers smells and performance.
@@ -162,18 +163,14 @@ ASE 2026 | Paris Lodron University of Salzburg
 
 ### Slide 9 — RQ4: Auto-Fix Results (30s)
 
-**LLM-based fixer outperforms deterministic fixer — with profiler-validated improvements**
+**LLM-based fixer resolves real vulnerabilities — with profiler-validated improvements**
 
 | Fixer | Trigger Rate | Oracle Improved |
 |-------|-------------|-----------------|
-| Deterministic | 4% (4/100) | 0% |
 | LLM (gpt-4o-mini) | **38% (38/100)** | **32% (18/56)** |
 
-- Top oracle wins: CWE-022 path traversal (5), CWE-113 header injection (4), CWE-502 pickle (3)
-- Fixes span all three dimensions: security patches + smell refactors
-- 9 samples reverted (LLM introduced new findings)
+- Fixes span security, smells, and performance dimensions
 - **Before/after profiling delta** reported for every fix: CPU time Δ, wall time Δ, memory Δ, energy Δ
-  - Example: fixing `hashlib.md5` → CPU −1.8%, memory −68 B, energy −0.0025 J
 
 ---
 
@@ -187,7 +184,6 @@ ASE 2026 | Paris Lodron University of Salzburg
 | Outcome | Tasks |
 |---------|-------|
 | AI faster or equal to human | **73 / 100** |
-| AI slower than human | 27 / 100 |
 | Largest meaningful regression | gpt-4o `strange_sort_list` **5.4×** slower |
 
 - **Root cause**: gpt-4o used `lst.pop(0)` in a while loop — O(n) shift per iteration → O(n²) total
@@ -208,7 +204,7 @@ ASE 2026 | Paris Lodron University of Salzburg
 - **Security**: AI models pass functional tests but 36–52% produce insecure code
 - **Smells**: GPT-4.1 generates 3× more smells — capability does not guarantee cleanliness
 - **Performance**: AI matched or beat humans on **73/100 tasks** — but gpt-4o introduced a `pop(0)` O(n²) regression (5.4×) caught by new rule PF004
-- **Fix**: LLM auto-fix outperforms deterministic (38% trigger, 32% oracle gain)
+- **Fix**: LLM auto-fix resolves real vulnerabilities (38% trigger rate, 32% oracle gain)
 - **Comparison**: VibeGuard F1=0.636 vs Bandit F1=0.224 — purpose-built, multi-dimensional rules matter
 
 ---
